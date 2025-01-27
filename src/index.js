@@ -29,6 +29,7 @@ function preload() {
 }
 
 const flapVELOCITY = 300;
+const PIPES_TO_RENDER = 4;
 
 const initialKilroyPosition = { x: config.width * 0.1, y: config.height / 2 };
 
@@ -37,9 +38,9 @@ const VELOCITY = 200;
 let kilroy = null;
 let upperPipe = null;
 let lowerPipe = null;
-let totalDelta = null;
+let pipeHorintalDistance = 0;
 let pipeVerticalDistanceRange = [150, 250];
-let pipeVerticalDistance = Phaser.Math.Between(...pipeVerticalDistanceRange);
+
 function create() {
   this.add.image(0, 0, "sky-bg").setOrigin(0);
   kilroy = this.physics.add
@@ -47,10 +48,26 @@ function create() {
     .setOrigin(0);
   kilroy.body.gravity.y = 400;
 
-  upperPipe = this.physics.add.sprite(400, 200, "pipe").setOrigin(0, 1);
-  lowerPipe = this.physics.add
-    .sprite(400, upperPipe.y + pipeVerticalDistance, "pipe")
-    .setOrigin(0);
+  for (let i = 0; i < PIPES_TO_RENDER; i++) {
+    ////////////////////////////////////////////////////////////// /////////////////////////////////<======== pipe generating for loop
+    pipeHorintalDistance += 400;
+    let pipeVerticalDistance = Phaser.Math.Between(
+      ...pipeVerticalDistanceRange
+    );
+    let pipeVerticalPosition = Phaser.Math.Between(
+      0 + 20,
+      config.height - 20 - pipeVerticalDistance
+    );
+    upperPipe = this.physics.add
+      .sprite(pipeHorintalDistance, pipeVerticalPosition, "pipe")
+      .setOrigin(0, 1);
+    lowerPipe = this.physics.add
+      .sprite(pipeHorintalDistance, upperPipe.y + pipeVerticalDistance, "pipe")
+      .setOrigin(0);
+
+    upperPipe.body.velocity.x = -200;
+    lowerPipe.body.velocity.x = -200;
+  }
 
   this.input.on("pointerdown", flap);
 
