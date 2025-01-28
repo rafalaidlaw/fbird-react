@@ -36,10 +36,11 @@ const initialKilroyPosition = { x: config.width * 0.1, y: config.height / 2 };
 const VELOCITY = 200;
 
 let kilroy = null;
-let upperPipe = null;
-let lowerPipe = null;
-let pipeHorintalDistance = 0;
+let pipes = null;
+
+let pipeHorizontalDistance = 0;
 let pipeVerticalDistanceRange = [150, 250];
+const pipeHorizontalDistanceRange = [450, 500];
 
 function create() {
   this.add.image(0, 0, "sky-bg").setOrigin(0);
@@ -48,26 +49,18 @@ function create() {
     .setOrigin(0);
   kilroy.body.gravity.y = 400;
 
+  pipes = this.physics.add.group();
+
   for (let i = 0; i < PIPES_TO_RENDER; i++) {
     ////////////////////////////////////////////////////////////// /////////////////////////////////<======== pipe generating for loop
-    pipeHorintalDistance += 400;
-    let pipeVerticalDistance = Phaser.Math.Between(
-      ...pipeVerticalDistanceRange
-    );
-    let pipeVerticalPosition = Phaser.Math.Between(
-      0 + 20,
-      config.height - 20 - pipeVerticalDistance
-    );
-    upperPipe = this.physics.add
-      .sprite(pipeHorintalDistance, pipeVerticalPosition, "pipe")
-      .setOrigin(0, 1);
-    lowerPipe = this.physics.add
-      .sprite(pipeHorintalDistance, upperPipe.y + pipeVerticalDistance, "pipe")
-      .setOrigin(0);
 
-    upperPipe.body.velocity.x = -200;
-    lowerPipe.body.velocity.x = -200;
+    const upperPipe = pipes.create(0, 0, "pipe").setOrigin(0, 1);
+    const lowerPipe = pipes.create(0, 0, "pipe").setOrigin(0);
+
+    placePipe(upperPipe, lowerPipe);
   }
+
+  pipes.setVelocityX(-200);
 
   this.input.on("pointerdown", flap);
 
@@ -82,6 +75,47 @@ function update(time, delta) {
     restartKilroyPosition();
     // alert("You have lost");
   }
+  recyclePipes();
+}
+
+function placePipe(upPipe, lowPipe) {
+  const rightMostX = getRightMostPipe();
+  const pipeVerticalDistance = Phaser.Math.Between(
+    ...pipeVerticalDistanceRange
+  );
+  const pipeVerticalPosition = Phaser.Math.Between(
+    0 + 20,
+    config.height - 20 - pipeVerticalDistance
+  );
+  const pipeHorizontalDistance = Phaser.Math.Between(
+    ...pipeHorizontalDistanceRange
+  );
+
+  upPipe.x = rightMostX + pipeHorizontalDistance;
+  upPipe.y = pipeVerticalPosition;
+
+  lowPipe.x = upPipe.x;
+  lowPipe.y = upPipe.y + pipeVerticalDistance;
+}
+
+function recyclePipes() {
+  const tempPipes = [];
+  pipes.getChildren().forEach((pipe) => {
+    if (pipe.getBounds().right <= -1) {
+      tempPipes.push(pipe);
+      if (tempPipes.length === 2) {
+        placePipe(...tempPipes);
+      }
+    }
+  });
+}
+
+function getRightMostPipe() {
+  let rightMostX = 0;
+  pipes.getChildren().forEach(function (pipe) {
+    rightMostX = Math.max(pipe.x, rightMostX);
+  });
+  return rightMostX;
 }
 
 function restartKilroyPosition() {
