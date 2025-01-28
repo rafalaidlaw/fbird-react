@@ -1,10 +1,19 @@
 import Phaser from "phaser";
 
+import PlayScene from "./scenes/PlayScene";
+
+const WIDTH = 800;
+const HEIGHT = 600;
+const KILBOY_POSITION = { x: (WIDTH * 1) / 10, y: HEIGHT / 2 };
+const SHARED_CONFIG = {
+  width: WIDTH,
+  height: HEIGHT,
+  startPosition: KILBOY_POSITION,
+};
 const config = {
   //WebGL web graphics library
   type: Phaser.AUTO,
-  width: 800,
-  height: 600,
+  ...SHARED_CONFIG,
   physics: {
     // Arcade physics plugin manages physics simulation
     default: "arcade",
@@ -13,18 +22,13 @@ const config = {
       debug: true,
     },
   },
-  scene: {
-    preload: preload,
-    create: create,
-    update,
-  },
+  scene: [new PlayScene(SHARED_CONFIG)],
 };
 //loading assets, such as images, music, animations
 function preload() {
   // 'this' context - scene
   //contains functions and properties we can use
-  this.load.image("sky-bg", "assets/sky.png");
-  this.load.image("kilroy", "assets/kilroy.png");
+
   this.load.image("pipe", "assets/pipe.png");
 }
 
@@ -43,12 +47,6 @@ let pipeVerticalDistanceRange = [150, 250];
 const pipeHorizontalDistanceRange = [450, 500];
 
 function create() {
-  this.add.image(0, 0, "sky-bg").setOrigin(0);
-  kilroy = this.physics.add
-    .sprite(initialKilroyPosition.x, initialKilroyPosition.y, "kilroy")
-    .setOrigin(0);
-  kilroy.body.gravity.y = 400;
-
   pipes = this.physics.add.group();
 
   for (let i = 0; i < PIPES_TO_RENDER; i++) {
