@@ -14,6 +14,9 @@ class PlayScene extends Phaser.Scene {
     this.pipeVerticalDistanceRange = [150, 250];
     this.pipeHorizontalDistanceRange = [450, 500];
     this.flapVELOCITY = 300;
+
+    this.score = 0;
+    this.scoreText = "";
   }
 
   preload() {
@@ -27,6 +30,7 @@ class PlayScene extends Phaser.Scene {
     this.createKilboy();
     this.createPipes();
     this.createColiders();
+    this.createScore();
     this.handleInputs();
   }
 
@@ -77,6 +81,19 @@ class PlayScene extends Phaser.Scene {
       this
     );
   }
+
+  createScore() {
+    this.score = 0;
+    const bestScore = localStorage.getItem("bestScore");
+    this.scoreText = this.add.text(16, 16, `Score: ${0}`, {
+      fontSize: "32px",
+      fill: "#000",
+    });
+    this.add.text(16, 52, `Best Score: ${bestScore || 0}`, {
+      fontSize: "18px",
+      fill: "#000",
+    });
+  }
   handleInputs() {
     this.input.on("pointerdown", this.flap, this);
 
@@ -116,6 +133,8 @@ class PlayScene extends Phaser.Scene {
         tempPipes.push(pipe);
         if (tempPipes.length === 2) {
           this.placePipe(...tempPipes);
+          this.increaseScore();
+          this.saveBestScore();
         }
       }
     });
@@ -128,17 +147,36 @@ class PlayScene extends Phaser.Scene {
     return rightMostX;
   }
 
+  saveBestScore() {
+    const bestScoreText = localStorage.getItem("bestScore");
+    const bestScore = bestScoreText && parseInt(bestScoreText, 10);
+    if (!bestScore || this.score > bestScore) {
+      localStorage.setItem("bestScore", this.score);
+    }
+  }
+
   gameOver() {
-    //     this.kilboy.x = this.config.startPosition.x;
-    //     this.kilboy.y = this.config.startPosition.y;
-    //     this.kilboy.body.velocity.y = 0;
-    //     this.kilboy.gravity = 0;
     this.physics.pause();
     this.kilboy.setTint(0xff0000);
+
+    this.saveBestScore();
+
+    this.time.addEvent({
+      delay: 500,
+      callback: () => {
+        this.scene.restart();
+      },
+      loop: false,
+    });
   }
 
   flap() {
     this.kilboy.body.velocity.y = -this.flapVELOCITY;
+  }
+
+  increaseScore() {
+    this.score++;
+    this.scoreText.setText(`Score: ${this.score}`);
   }
 }
 
