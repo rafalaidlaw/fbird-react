@@ -26,6 +26,7 @@ class PlayScene extends Phaser.Scene {
     this.createBG();
     this.createKilboy();
     this.createPipes();
+    this.createColiders();
     this.handleInputs();
   }
 
@@ -47,17 +48,34 @@ class PlayScene extends Phaser.Scene {
       )
       .setOrigin(0);
     this.kilboy.body.gravity.y = 400;
+    this.kilboy.setCollideWorldBounds(true);
   }
   createPipes() {
     this.pipes = this.physics.add.group();
     for (let i = 0; i < PIPES_TO_RENDER; i++) {
-      const upperPipe = this.pipes.create(0, 0, "pipe").setOrigin(0, 1);
-      const lowerPipe = this.pipes.create(0, 0, "pipe").setOrigin(0);
+      const upperPipe = this.pipes
+        .create(0, 0, "pipe")
+        .setImmovable(true)
+        .setOrigin(0, 1);
+      const lowerPipe = this.pipes
+        .create(0, 0, "pipe")
+        .setImmovable(true)
+        .setOrigin(0);
 
       this.placePipe(upperPipe, lowerPipe);
     }
 
     this.pipes.setVelocityX(-200);
+  }
+
+  createColiders() {
+    this.physics.add.collider(
+      this.kilboy,
+      this.pipes,
+      this.gameOver,
+      null,
+      this
+    );
   }
   handleInputs() {
     this.input.on("pointerdown", this.flap, this);
@@ -66,10 +84,10 @@ class PlayScene extends Phaser.Scene {
   }
   checkGameStatus() {
     if (
-      this.kilboy.y <= 0 - this.kilboy.height ||
-      this.kilboy.y >= this.config.height
+      this.kilboy.y <= 0 ||
+      this.kilboy.y >= this.config.height - this.kilboy.height
     ) {
-      this.restartkilboyPosition();
+      this.gameOver();
     }
   }
   placePipe(upPipe, lowPipe) {
@@ -110,11 +128,13 @@ class PlayScene extends Phaser.Scene {
     return rightMostX;
   }
 
-  restartkilboyPosition() {
-    this.kilboy.x = this.config.startPosition.x;
-    this.kilboy.y = this.config.startPosition.y;
-    this.kilboy.body.velocity.y = 0;
-    this.kilboy.gravity = 0;
+  gameOver() {
+    //     this.kilboy.x = this.config.startPosition.x;
+    //     this.kilboy.y = this.config.startPosition.y;
+    //     this.kilboy.body.velocity.y = 0;
+    //     this.kilboy.gravity = 0;
+    this.physics.pause();
+    this.kilboy.setTint(0xff0000);
   }
 
   flap() {
