@@ -1,10 +1,10 @@
-import Phaser from "phaser";
+import BaseScene from "./BaseScene";
 
 const PIPES_TO_RENDER = 4;
 
-class PlayScene extends Phaser.Scene {
+class PlayScene extends BaseScene {
   constructor(config) {
-    super("PlayScene");
+    super("PlayScene", config);
     this.config = config;
 
     this.kilboy = null;
@@ -19,18 +19,13 @@ class PlayScene extends Phaser.Scene {
     this.scoreText = "";
   }
 
-  preload() {
-    this.load.image("sky-bg", "assets/sky.png");
-    this.load.image("kilboy", "assets/kilboy.png");
-    this.load.image("pipe", "assets/pipe.png");
-  }
-
   create() {
-    this.createBG();
+    super.create();
     this.createKilboy();
     this.createPipes();
     this.createColiders();
     this.createScore();
+    this.createPause();
     this.handleInputs();
   }
 
@@ -94,6 +89,23 @@ class PlayScene extends Phaser.Scene {
       fill: "#000",
     });
   }
+
+  createPause() {
+    const pauseButton = this.add
+      .image(this.config.width - 10, this.config.height - 10, "pause")
+      .setOrigin(1)
+      .setInteractive();
+
+    pauseButton.on(
+      "pointerdown",
+      () => {
+        this.physics.pause();
+        this.scene.pause();
+      },
+      this
+    );
+  }
+
   handleInputs() {
     this.input.on("pointerdown", this.flap, this);
 

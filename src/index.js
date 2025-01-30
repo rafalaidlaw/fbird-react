@@ -1,6 +1,7 @@
 import Phaser from "phaser";
-
+import PreloadScene from "./scenes/PreloadScene";
 import PlayScene from "./scenes/PlayScene";
+import MenuScene from "./scenes/MenuScene";
 
 const WIDTH = 800;
 const HEIGHT = 600;
@@ -10,6 +11,11 @@ const SHARED_CONFIG = {
   height: HEIGHT,
   startPosition: KILBOY_POSITION,
 };
+
+const Scenes = [PreloadScene, MenuScene, PlayScene];
+const createScene = (Scene) => new Scene(SHARED_CONFIG);
+const initScenes = () => Scenes.map(createScene);
+
 const config = {
   //WebGL web graphics library
   type: Phaser.AUTO,
@@ -22,6 +28,6 @@ const config = {
       debug: true,
     },
   },
-  scene: [new PlayScene(SHARED_CONFIG)],
+  scene: initScenes(),
 };
 new Phaser.Game(config);
