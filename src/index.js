@@ -5,8 +5,8 @@ import MenuScene from "./scenes/MenuScene";
 import ScoreScene from "./scenes/ScoreScene";
 import PauseScene from "./scenes/PauseScene";
 
-const WIDTH = 800;
-const HEIGHT = 600;
+const WIDTH = 400;
+const HEIGHT = 500;
 const KILBOY_POSITION = { x: (WIDTH * 1) / 10, y: HEIGHT / 2 };
 const SHARED_CONFIG = {
   width: WIDTH,
@@ -22,6 +22,7 @@ const config = {
   //WebGL web graphics library
   type: Phaser.AUTO,
   ...SHARED_CONFIG,
+  pixelArt: true,
   physics: {
     // Arcade physics plugin manages physics simulation
     default: "arcade",
