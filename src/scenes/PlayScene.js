@@ -52,6 +52,10 @@ class PlayScene extends BaseScene {
     this.checkGameStatus();
 
     this.recyclePipes();
+
+    if (this.kilboy.body.velocity.y > 0) {
+      this.kilboy.setTexture("kilboy");
+    }
   }
 
   listenToEvents() {
@@ -252,6 +256,7 @@ class PlayScene extends BaseScene {
       return;
     }
     this.kilboy.body.velocity.y = -this.flapVELOCITY;
+    this.kilboy.setTexture("kilboy2");
   }
 
   increaseScore() {
