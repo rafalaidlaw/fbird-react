@@ -55,6 +55,7 @@ class PlayScene extends BaseScene {
 
     if (this.kilboy.body.velocity.y > 0) {
       this.kilboy.setTexture("kilboy");
+      this.kilboy.body.setSize(0, 0);
     }
   }
 
@@ -102,7 +103,8 @@ class PlayScene extends BaseScene {
         this.config.startPosition.y,
         "kilboy"
       )
-      .setOrigin(0);
+      .setOrigin(0)
+      .setDepth(1);
     this.kilboy.setBodySize(this.kilboy.width, this.kilboy.height - 8);
     this.kilboy.body.gravity.y = 400;
     this.kilboy.setCollideWorldBounds(true);
@@ -256,7 +258,10 @@ class PlayScene extends BaseScene {
       return;
     }
     this.kilboy.body.velocity.y = -this.flapVELOCITY;
+    this.kilboy.y = this.kilboy.y - 50;
     this.kilboy.setTexture("kilboy2");
+    // this.kilboy.body.setSize(0, -40);
+    // this.kilboy.body.setOffset(0, 40);
   }
 
   increaseScore() {
