@@ -4,7 +4,8 @@ class PreloadScene extends Phaser.Scene {
   constructor() {
     super("PreloadScene");
   }
-  preload() {
+
+  preload(): void {
     this.load.image("sky-bg", "assets/sky.png");
     this.load.image("kilboy", "assets/kilboy.png");
     this.load.image("kilboy2", "assets/kilboy_swing.png");
@@ -17,9 +18,9 @@ class PreloadScene extends Phaser.Scene {
     this.load.image("back", "assets/back.png");
   }
 
-  create() {
+  create(): void {
     this.scene.start("MenuScene");
   }
 }
 
-export default PreloadScene;
+export default PreloadScene; 

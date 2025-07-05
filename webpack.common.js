@@ -6,7 +6,7 @@ const webpack = require("webpack");
 module.exports = {
   mode: "development",
   entry: {
-    app: "./src/index.js",
+    app: "./src/index.ts",
   },
   devtool: "eval-source-map",
   output: {
@@ -24,8 +24,18 @@ module.exports = {
       },
     },
   },
+  resolve: {
+    extensions: [".ts", ".js", ".json"],
+  },
   module: {
     rules: [
+      {
+        test: /\.ts$/,
+        exclude: /node_modules/,
+        use: {
+          loader: "ts-loader",
+        },
+      },
       {
         test: /\.js$/,
         exclude: /node_modules/,

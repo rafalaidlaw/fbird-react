@@ -1,9 +1,11 @@
 import BaseScene from "./BaseScene";
+
 class ScoreScene extends BaseScene {
-  constructor(config) {
+  constructor(config: any) {
     super("ScoreScene", { ...config, canGoBack: true });
   }
-  create() {
+
+  create(): void {
     super.create();
     const bestScore = localStorage.getItem("bestScore");
     this.add
@@ -15,4 +17,5 @@ class ScoreScene extends BaseScene {
       .setOrigin(0.5);
   }
 }
-export default ScoreScene;
+
+export default ScoreScene; 

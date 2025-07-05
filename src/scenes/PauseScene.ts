@@ -1,7 +1,9 @@
 import BaseScene from "./BaseScene";
 
 class PauseScene extends BaseScene {
-  constructor(config) {
+  private menu: { scene: string; text: string; textGO?: Phaser.GameObjects.Text }[];
+
+  constructor(config: any) {
     super("PauseScene", config);
 
     this.menu = [
@@ -10,13 +12,13 @@ class PauseScene extends BaseScene {
     ];
   }
 
-  create() {
+  create(): void {
     super.create();
-    this.createMenu(this.menu, this.setupMenuEvents.bind(this));
+    this.createMenu(this.menu as any, this.setupMenuEvents.bind(this) as any);
   }
 
-  setupMenuEvents(menuItem) {
-    const textGO = menuItem.textGO;
+  setupMenuEvents(menuItem: { scene: string; text: string; textGO?: Phaser.GameObjects.Text }): void {
+    const textGO = menuItem.textGO!;
     textGO.setInteractive();
 
     textGO.on("pointerover", () => {
@@ -41,4 +43,4 @@ class PauseScene extends BaseScene {
   }
 }
 
-export default PauseScene;
+export default PauseScene; 

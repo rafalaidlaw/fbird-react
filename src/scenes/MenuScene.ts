@@ -1,6 +1,10 @@
 import BaseScene from "./BaseScene";
+import { MenuItem } from "../interface";
+
 class MenuScene extends BaseScene {
-  constructor(config) {
+  private menu: MenuItem[];
+
+  constructor(config: any) {
     super("MenuScene", config);
 
     this.menu = [
@@ -10,12 +14,13 @@ class MenuScene extends BaseScene {
     ];
   }
 
-  create() {
+  create(): void {
     super.create();
     this.createMenu(this.menu, this.setupMenuEvents.bind(this));
   }
-  setupMenuEvents(menuItem) {
-    const textGO = menuItem.textGO;
+
+  setupMenuEvents(menuItem: MenuItem): void {
+    const textGO = menuItem.textGO!;
     textGO.setInteractive();
     textGO.on("pointerover", () => {
       textGO.setStyle({ fill: "#ff0" });
@@ -32,4 +37,4 @@ class MenuScene extends BaseScene {
   }
 }
 
-export default MenuScene;
+export default MenuScene; 

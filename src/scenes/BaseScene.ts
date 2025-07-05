@@ -1,7 +1,21 @@
 import Phaser from "phaser";
+import { MenuItem } from "../interface";
+
+interface SceneConfig {
+  width: number;
+  height: number;
+  canGoBack?: boolean;
+  startPosition: { x: number; y: number };
+}
 
 class BaseScene extends Phaser.Scene {
-  constructor(key, config) {
+  protected config: SceneConfig;
+  protected screenCenter: [number, number];
+  protected fontSize: number;
+  protected lineHeight: number;
+  protected fontOptions: { fontSize: string; fill: string };
+
+  constructor(key: string, config: SceneConfig) {
     super(key);
     this.config = config;
     this.screenCenter = [config.width / 2, config.height / 2];
@@ -10,7 +24,7 @@ class BaseScene extends Phaser.Scene {
     this.fontOptions = { fontSize: `${this.fontSize}px`, fill: "#fff" };
   }
 
-  create() {
+  create(): void {
     this.add.image(0, 0, "sky-bg").setOrigin(0);
     if (this.config.canGoBack) {
       const backButton = this.add
@@ -23,10 +37,11 @@ class BaseScene extends Phaser.Scene {
       });
     }
   }
-  createMenu(menu, setupMenuEvents) {
+
+  createMenu(menu: MenuItem[], setupMenuEvents: (menuItem: MenuItem) => void): void {
     let lastMenuPositionY = 0;
     menu.forEach((menuItem) => {
-      const menuPosition = [
+      const menuPosition: [number, number] = [
         this.screenCenter[0],
         this.screenCenter[1] + lastMenuPositionY,
       ];
@@ -39,4 +54,4 @@ class BaseScene extends Phaser.Scene {
   }
 }
 
-export default BaseScene;
+export default BaseScene; 
