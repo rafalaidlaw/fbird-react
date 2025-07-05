@@ -16,13 +16,22 @@ interface Difficulties {
 class PlayScene extends BaseScene {
   private kilboy: Phaser.Physics.Arcade.Sprite | null = null;
   private pipes: Phaser.Physics.Arcade.Group | null = null;
+  private greenHitboxes: Phaser.Physics.Arcade.Group | null = null;
+  private blueHitboxes: Phaser.Physics.Arcade.Group | null = null;
+  private isTouchingBlueHitbox: boolean = false;
   private isPaused: boolean = false;
   private pipeHorizontalDistance: number = 0;
   private pipeVerticalDistanceRange: [number, number] = [150, 250];
   private pipeHorizontalDistanceRange: [number, number] = [450, 500];
   private flapVELOCITY: number = 270;
+  private initialFlapVelocity: number = 800;
+  private decelerationRate: number = 0.8;
+  private frameCount: number = 0;
   private score: number = 0;
   private scoreText: Phaser.GameObjects.Text | null = null;
+  private jumpCount: number = 0;
+  private jumpCountText: Phaser.GameObjects.Text | null = null;
+  private jumpRectangles: Phaser.GameObjects.Rectangle[] = [];
   private currentDifficulty: keyof Difficulties = "easy";
   private difficulties: Difficulties = {
     easy: {
@@ -63,10 +72,26 @@ class PlayScene extends BaseScene {
   update(): void {
     this.checkGameStatus();
     this.recyclePipes();
+    this.checkGreenHitboxOverlap();
+    this.checkBlueHitboxOverlap();
+
+    // Apply deceleration to upward velocity every other frame
+    if (this.kilboy && this.kilboy.body.velocity.y < 0) {
+      this.frameCount++;
+      if (this.frameCount % 2 === 0) {
+        this.kilboy.body.velocity.y *= this.decelerationRate;
+      }
+    } else {
+      this.frameCount = 0;
+    }
 
     if (this.kilboy && this.kilboy.body.velocity.y > 0) {
       this.kilboy.setTexture("kilboy");
       this.kilboy.body.setSize(0, 0);
+      
+      // Reset jump counter when player starts falling
+      this.jumpCount = 0;
+      this.updateJumpRectangles();
     }
   }
 
@@ -127,6 +152,8 @@ class PlayScene extends BaseScene {
 
   private createPipes(): void {
     this.pipes = this.physics.add.group();
+    this.greenHitboxes = this.physics.add.group();
+    this.blueHitboxes = this.physics.add.group();
     for (let i = 0; i < PIPES_TO_RENDER; i++) {
       // Create upper pipe as a container with orange rectangle
       const upperPipeContainer = this.add.container(0, 0);
@@ -137,9 +164,18 @@ class PlayScene extends BaseScene {
       upperPipeContainer.add(upperOrangeRect);
       
       // Add blue rectangle as child of the container
-      const blueRect = this.add.rectangle(0, 0, 52, 16, 0x0000ff);
+      const blueRect = this.add.rectangle(0, 0, 52, 16, 0x0000ff, 0);
       blueRect.setOrigin(0, 0);
       upperPipeContainer.add(blueRect);
+      
+      // Create separate hitbox for blue rectangle
+      const blueHitbox = this.add.rectangle(0, 0, 52, 16, 0x00ffff, 0.5);
+      blueHitbox.setOrigin(0, 0);
+      this.physics.add.existing(blueHitbox);
+      (blueHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
+      
+      // Add to the blue hitboxes group
+      this.blueHitboxes!.add(blueHitbox);
       
       // Add physics to the container
       this.physics.add.existing(upperPipeContainer);
@@ -161,7 +197,7 @@ class PlayScene extends BaseScene {
       lowerPipeContainer.add(orangeRect);
       
       // Add red rectangle as child of the container
-      const redRect = this.add.rectangle(0, 0, 52, 16, 0xff0000);
+      const redRect = this.add.rectangle(0, 0, 52, 16, 0xff0000, 0);
       redRect.setOrigin(0, 0);
       lowerPipeContainer.add(redRect);
       
@@ -169,11 +205,25 @@ class PlayScene extends BaseScene {
       this.physics.add.existing(lowerPipeContainer);
       (lowerPipeContainer.body as Phaser.Physics.Arcade.Body).setImmovable(true);
       
-      // Set the hitbox to match the orange rectangle size
+      // Set the hitbox to match the orange rectangle size and position
       (lowerPipeContainer.body as Phaser.Physics.Arcade.Body).setSize(52, 320);
+      (lowerPipeContainer.body as Phaser.Physics.Arcade.Body).setOffset(0, 16);
+      
+      // Create separate hitbox for red rectangle
+      const redHitbox = this.add.rectangle(0, 0, 52, 16, 0x00ff00, 0.5);
+      redHitbox.setOrigin(0, 0);
+      this.physics.add.existing(redHitbox);
+      (redHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
       
       // Add to the pipes group
       this.pipes.add(lowerPipeContainer as any);
+      this.greenHitboxes!.add(redHitbox);
+      
+      // Store reference to red hitbox for positioning
+      (lowerPipeContainer as any).redHitbox = redHitbox;
+      
+      // Store reference to blue hitbox for positioning
+      (upperPipeContainer as any).blueHitbox = blueHitbox;
 
       this.placePipe(upperPipeContainer, lowerPipeContainer);
     }
@@ -197,6 +247,7 @@ class PlayScene extends BaseScene {
 
   private createColiders(): void {
     if (this.kilboy && this.pipes) {
+      // Collision with pipes (orange rectangles) - causes death
       this.physics.add.collider(
         this.kilboy,
         this.pipes,
@@ -204,11 +255,16 @@ class PlayScene extends BaseScene {
         undefined,
         this
       );
+      
+
+      
+
     }
   }
 
   private createScore(): void {
     this.score = 0;
+    this.jumpCount = 0;
     const bestScore = localStorage.getItem("bestScore");
     this.scoreText = this.add.text(16, 16, `Score: ${0}`, {
       fontSize: "32px",
@@ -218,6 +274,16 @@ class PlayScene extends BaseScene {
       fontSize: "18px",
       fill: "#000",
     });
+    
+    // Clear existing rectangles and create new ones
+    this.jumpRectangles.forEach(rect => rect.destroy());
+    this.jumpRectangles = [];
+    
+    // Create jump counter rectangles
+    for (let i = 0; i < 3; i++) {
+      const rect = this.add.rectangle(16 + (i * 25), 120, 20, 20, 0xffff00, 0.2);
+      this.jumpRectangles.push(rect);
+    }
   }
 
   private createPause(): void {
@@ -271,6 +337,30 @@ class PlayScene extends BaseScene {
 
     lowPipe.x = upPipe.x;
     lowPipe.y = upPipe.y + pipeVerticalDistance;
+    
+    // Position the red hitbox to match the red rectangle in the container
+    if (lowPipe && (lowPipe as any).redHitbox) {
+      const redHitbox = (lowPipe as any).redHitbox;
+      redHitbox.x = lowPipe.x;
+      redHitbox.y = lowPipe.y;
+    }
+    
+    // Position the blue hitbox to match the blue rectangle in the container
+    if (upPipe && (upPipe as any).blueHitbox) {
+      const blueHitbox = (upPipe as any).blueHitbox;
+      blueHitbox.x = upPipe.x;
+      blueHitbox.y = upPipe.y;
+    }
+    
+    // Move green hitboxes with the same velocity
+    if (this.greenHitboxes) {
+      this.greenHitboxes.setVelocityX(-200);
+    }
+    
+    // Move blue hitboxes with the same velocity
+    if (this.blueHitboxes) {
+      this.blueHitboxes.setVelocityX(-200);
+    }
   }
 
   private recyclePipes(): void {
@@ -336,13 +426,80 @@ class PlayScene extends BaseScene {
     });
   }
 
+  private stopGravity(): void {
+    if (this.kilboy) {
+      (this.kilboy.body as Phaser.Physics.Arcade.Body).setGravityY(0);
+    }
+  }
+
+  private restoreGravity(): void {
+    if (this.kilboy) {
+      (this.kilboy.body as Phaser.Physics.Arcade.Body).setGravityY(400);
+    }
+  }
+
+  private checkGreenHitboxOverlap(): void {
+    if (!this.kilboy || !this.greenHitboxes) return;
+    
+    let isOverlapping = false;
+    this.greenHitboxes.getChildren().forEach((hitbox) => {
+      if (this.kilboy && this.physics.overlap(this.kilboy, hitbox)) {
+        isOverlapping = true;
+      }
+    });
+    
+    if (isOverlapping) {
+      (this.kilboy.body as Phaser.Physics.Arcade.Body).setGravityY(0);
+      (this.kilboy.body as Phaser.Physics.Arcade.Body).setVelocityY(0);
+    } else {
+      (this.kilboy.body as Phaser.Physics.Arcade.Body).setGravityY(400);
+    }
+  }
+
+  private checkBlueHitboxOverlap(): void {
+    if (!this.kilboy || !this.blueHitboxes) return;
+    
+    let isOverlapping = false;
+    this.blueHitboxes.getChildren().forEach((hitbox) => {
+      if (this.kilboy && this.physics.overlap(this.kilboy, hitbox)) {
+        isOverlapping = true;
+      }
+    });
+    
+    if (isOverlapping && !this.isTouchingBlueHitbox) {
+      // First time hitting the blue hitbox
+      (this.kilboy.body as Phaser.Physics.Arcade.Body).setVelocityY(0);
+      (this.kilboy.body as Phaser.Physics.Arcade.Body).setGravityY(400);
+      this.isTouchingBlueHitbox = true;
+    } else if (!isOverlapping && this.isTouchingBlueHitbox) {
+      // No longer touching the blue hitbox
+      this.isTouchingBlueHitbox = false;
+    }
+  }
+
   private flap(): void {
-    if (this.isPaused || !this.kilboy) {
+    if (this.isPaused || !this.kilboy || this.jumpCount >= 3) {
       return;
     }
-    this.kilboy.body.velocity.y = -this.flapVELOCITY;
-    this.kilboy.y = this.kilboy.y - 50;
+    
+    // Start with high velocity for speed feeling
+    this.kilboy.body.velocity.y = -this.initialFlapVelocity;
+    this.kilboy.y = this.kilboy.y;
     this.kilboy.setTexture("kilboy2");
+    
+    // Increment jump counter
+    this.jumpCount++;
+    this.updateJumpRectangles();
+  }
+
+  private updateJumpRectangles(): void {
+    this.jumpRectangles.forEach((rect, index) => {
+      if (index < this.jumpCount) {
+        rect.setAlpha(1); // 100% opacity
+      } else {
+        rect.setAlpha(0.2); // 20% opacity
+      }
+    });
   }
 
   private increaseScore(): void {
