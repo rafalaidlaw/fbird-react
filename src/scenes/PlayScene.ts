@@ -20,6 +20,7 @@ class PlayScene extends BaseScene {
   private blueHitboxes: Phaser.Physics.Arcade.Group | null = null;
   private isTouchingBlueHitbox: boolean = false;
   private isPaused: boolean = false;
+  private isGameOver: boolean = false;
   private pipeHorizontalDistance: number = 0;
   private pipeVerticalDistanceRange: [number, number] = [150, 250];
   private pipeHorizontalDistanceRange: [number, number] = [450, 500];
@@ -58,6 +59,7 @@ class PlayScene extends BaseScene {
 
   create(): void {
     super.create();
+    this.isGameOver = false;
     this.currentDifficulty = "easy";
     this.createKilboy();
     this.createPipes();
@@ -281,7 +283,7 @@ class PlayScene extends BaseScene {
     
     // Create jump counter rectangles
     for (let i = 0; i < 3; i++) {
-      const rect = this.add.rectangle(16 + (i * 25), 120, 20, 20, 0xffff00, 0.2);
+      const rect = this.add.rectangle(16, 120 + (i * 25), 20, 20, 0xffff00, 0.2);
       this.jumpRectangles.push(rect);
     }
   }
@@ -410,6 +412,7 @@ class PlayScene extends BaseScene {
   }
 
   private gameOver(): void {
+    this.isGameOver = true;
     this.physics.pause();
     if (this.kilboy) {
       this.kilboy.setTint(0xff0000);
@@ -493,8 +496,13 @@ class PlayScene extends BaseScene {
   }
 
   private updateJumpRectangles(): void {
+    // Don't update rectangles if game is over
+    if (this.isGameOver) {
+      return;
+    }
+    
     this.jumpRectangles.forEach((rect, index) => {
-      if (index < this.jumpCount) {
+      if (index >= (3 - this.jumpCount)) {
         rect.setAlpha(1); // 100% opacity
       } else {
         rect.setAlpha(0.2); // 20% opacity
