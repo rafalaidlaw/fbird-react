@@ -22,11 +22,11 @@ class PauseScene extends BaseScene {
     textGO.setInteractive();
 
     textGO.on("pointerover", () => {
-      textGO.setStyle({ fill: "#ff0" });
+      textGO.setStyle({ color: "#ff0" });
     });
 
     textGO.on("pointerout", () => {
-      textGO.setStyle({ fill: "#fff" });
+      textGO.setStyle({ color: "#fff" });
     });
 
     textGO.on("pointerup", () => {

@@ -26,6 +26,13 @@ module.exports = {
   },
   resolve: {
     extensions: [".ts", ".js", ".json"],
+    fallback: {
+      process: require.resolve("process/browser"),
+      buffer: require.resolve("buffer"),
+      util: require.resolve("util"),
+      assert: require.resolve("assert"),
+      stream: require.resolve("stream-browserify"),
+    },
   },
   module: {
     rules: [
@@ -68,6 +75,9 @@ module.exports = {
     }),
     new webpack.ProvidePlugin({
       process: "process/browser",
+    }),
+    new webpack.ProvidePlugin({
+      Buffer: ["buffer", "Buffer"],
     }),
   ],
 };

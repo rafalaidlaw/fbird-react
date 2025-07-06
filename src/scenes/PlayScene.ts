@@ -34,6 +34,7 @@ class PlayScene extends BaseScene {
   private frameCount: number = 0;
   private score: number = 0;
   private scoreText: Phaser.GameObjects.Text | null = null;
+  private debugText: Phaser.GameObjects.Text | null = null;
   private jumpCount: number = 0;
   private jumpCountText: Phaser.GameObjects.Text | null = null;
   private jumpRectangles: Phaser.GameObjects.Rectangle[] = [];
@@ -74,6 +75,9 @@ class PlayScene extends BaseScene {
     this.createPause();
     this.handleInputs();
     this.listenToEvents();
+    
+    // Create test rectangle to show restricted area
+    this.createTestRectangle();
   }
 
   update(): void {
@@ -99,6 +103,17 @@ class PlayScene extends BaseScene {
       // Reset jump counter when player starts falling
       this.jumpCount = 0;
       this.updateJumpRectangles();
+    }
+    
+    // Prevent horizontal pushback from collisions
+    this.preventHorizontalPushback();
+    
+    // Check player boundary and give forward momentum if needed
+    this.checkPlayerBoundary();
+    
+    // Update debug text with player position
+    if (this.debugText && this.kilboy) {
+      this.debugText.setText(`Player: (${Math.round(this.kilboy.x)}, ${Math.round(this.kilboy.y)})`);
     }
   }
 
@@ -155,6 +170,18 @@ class PlayScene extends BaseScene {
     this.kilboy.setBodySize(this.kilboy.width, this.kilboy.height - 8);
     this.kilboy.body.gravity.y = 400;
     this.kilboy.setCollideWorldBounds(true);
+    
+    // Set world bounds to start 15 pixels from the left edge
+    this.physics.world.setBounds(15, 0, this.config.width - 15, this.config.height);
+    
+    if (!this.kilboy) return;
+    if (this.kilboy.body && this.kilboy.body instanceof Phaser.Physics.Arcade.Body) {
+      this.kilboy!.body.setBounce(0, 1); // Allow vertical bounce, no horizontal bounce
+      this.kilboy!.body.setDragX(0); // No horizontal drag
+      this.kilboy!.body.setMaxVelocity(0, 800); // No horizontal velocity limit, vertical limit of 800
+      // Prevent the player from being pushed by other objects
+      this.kilboy!.body.pushable = false;
+    }
   }
 
   private createPipes(): void {
@@ -319,7 +346,11 @@ class PlayScene extends BaseScene {
       this.physics.add.collider(
         this.kilboy,
         this.purpleHitboxes,
-        this.handlePurpleHitboxCollision,
+        (obj1: any, obj2: any) => {
+          if (obj1 instanceof Phaser.GameObjects.GameObject && obj2 instanceof Phaser.GameObjects.GameObject) {
+            this.handlePurpleHitboxCollision(obj1, obj2);
+          }
+        },
         undefined,
         this
       );
@@ -332,11 +363,17 @@ class PlayScene extends BaseScene {
     const bestScore = localStorage.getItem("bestScore");
     this.scoreText = this.add.text(16, 16, `Score: ${0}`, {
       fontSize: "32px",
-      fill: "#000",
+      color: "#000",
     });
     this.add.text(16, 52, `Best Score: ${bestScore || 0}`, {
       fontSize: "18px",
-      fill: "#000",
+      color: "#000",
+    });
+    
+    // Create debug text for player position
+    this.debugText = this.add.text(16, 88, `Player: (0, 0)`, {
+      fontSize: "16px",
+      color: "#ff0000",
     });
     
     // Clear existing rectangles and create new ones
@@ -649,6 +686,34 @@ class PlayScene extends BaseScene {
     }
   }
 
+  private preventHorizontalPushback(): void {
+    if (this.kilboy) {
+      // Store the player's horizontal position
+      const currentX = this.kilboy.x;
+      
+      // Reset horizontal velocity to prevent pushback
+      if (this.kilboy.body && this.kilboy.body instanceof Phaser.Physics.Arcade.Body) {
+        this.kilboy.body.setVelocityX(0);
+      }
+      
+      // Ensure the player stays at their intended horizontal position
+      this.kilboy.x = currentX;
+    }
+  }
+
+  private checkPlayerBoundary(): void {
+    if (this.kilboy && this.kilboy.body && this.kilboy.body instanceof Phaser.Physics.Arcade.Body) {
+      // Check if player is less than 40 pixels from the left edge
+      if (this.kilboy.x < 40) {
+        // Give forward momentum until they're past 40 pixels
+        this.kilboy.body.setVelocityX(200); // Move right at 200 pixels per second
+      } else {
+        // Turn horizontal velocity back to 0 when past 40 pixels
+        this.kilboy.body.setVelocityX(0);
+      }
+    }
+  }
+
   private gameOver(): void {
     this.isGameOver = true;
     this.physics.pause();
@@ -809,6 +874,19 @@ class PlayScene extends BaseScene {
     if (this.scoreText) {
       this.scoreText.setText(`Score: ${this.score}`);
     }
+  }
+
+  private createTestRectangle(): void {
+    const testRect = this.add.rectangle(
+      0,
+      0,
+      40, // 40 pixels wide
+      this.config.height, // Full screen height
+      0xff0000, // Red color
+      0.3
+    );
+    testRect.setOrigin(0, 0);
+    testRect.setDepth(10); // Ensure it's above other game objects
   }
 }
 
