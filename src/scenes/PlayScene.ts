@@ -18,9 +18,12 @@ class PlayScene extends BaseScene {
   private pipes: Phaser.Physics.Arcade.Group | null = null;
   private greenHitboxes: Phaser.Physics.Arcade.Group | null = null;
   private blueHitboxes: Phaser.Physics.Arcade.Group | null = null;
+  private purpleHitboxes: Phaser.Physics.Arcade.Group | null = null;
   private isTouchingBlueHitbox: boolean = false;
   private isPaused: boolean = false;
   private isGameOver: boolean = false;
+  private isInvincible: boolean = false;
+  private invincibleFlashTimer?: Phaser.Time.TimerEvent;
   private pipeHorizontalDistance: number = 0;
   private pipeVerticalDistanceRange: [number, number] = [150, 250];
   private pipeHorizontalDistanceRange: [number, number] = [450, 500];
@@ -60,6 +63,7 @@ class PlayScene extends BaseScene {
   create(): void {
     super.create();
     this.isGameOver = false;
+    this.isInvincible = false;
     this.currentDifficulty = "easy";
     this.createKilboy();
     this.createPipes();
@@ -156,6 +160,7 @@ class PlayScene extends BaseScene {
     this.pipes = this.physics.add.group();
     this.greenHitboxes = this.physics.add.group();
     this.blueHitboxes = this.physics.add.group();
+    this.purpleHitboxes = this.physics.add.group();
     for (let i = 0; i < PIPES_TO_RENDER; i++) {
       // Create upper pipe as a container with orange rectangle
       const upperPipeContainer = this.add.container(0, 0);
@@ -178,6 +183,49 @@ class PlayScene extends BaseScene {
       
       // Add to the blue hitboxes group
       this.blueHitboxes!.add(blueHitbox);
+      
+      // Create grid of colored hitboxes for this pipe (2 across, 12 up)
+      const colors = [
+        0xff0000, // Red
+        0x00ff00, // Green
+        0x0000ff, // Blue
+        0xffff00, // Yellow
+        0xff00ff, // Magenta
+        0x00ffff, // Cyan
+        0xff8000, // Orange
+        0x8000ff, // Purple
+        0xff0080, // Pink
+        0x80ff00, // Lime
+        0x0080ff, // Light Blue
+        0xff8000, // Orange
+      ];
+      
+      const pipeHitboxes: Phaser.GameObjects.Rectangle[] = [];
+      
+      for (let row = 0; row < 12; row++) {
+        for (let col = 0; col < 2; col++) {
+          const colorIndex = (row * 2 + col) % colors.length;
+          const hitbox = this.add.rectangle(
+            0, 0, // Will be positioned later
+            26, 26, colors[colorIndex], 0.5
+          );
+          hitbox.setOrigin(0, 0);
+          
+          // Add physics to individual hitbox
+          this.physics.add.existing(hitbox);
+          (hitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
+          (hitbox.body as Phaser.Physics.Arcade.Body).setSize(26, 26);
+          
+          // Add to purple hitboxes group
+          this.purpleHitboxes!.add(hitbox);
+          pipeHitboxes.push(hitbox);
+        }
+      }
+      
+      // Store reference to this pipe's hitboxes for positioning
+      (upperPipeContainer as any).purpleHitboxes = pipeHitboxes;
+      
+
       
       // Add physics to the container
       this.physics.add.existing(upperPipeContainer);
@@ -226,6 +274,9 @@ class PlayScene extends BaseScene {
       
       // Store reference to blue hitbox for positioning
       (upperPipeContainer as any).blueHitbox = blueHitbox;
+      
+      // Store reference to purple hitboxes for positioning
+      (upperPipeContainer as any).purpleHitbox = this.purpleHitboxes;
 
       this.placePipe(upperPipeContainer, lowerPipeContainer);
     }
@@ -250,17 +301,24 @@ class PlayScene extends BaseScene {
   private createColiders(): void {
     if (this.kilboy && this.pipes) {
       // Collision with pipes (orange rectangles) - causes death
+      // this.physics.add.collider(
+      //   this.kilboy,
+      //   this.pipes,
+      //   this.handleCollision,
+      //   this.canCollide,
+      //   this
+      // );
+    }
+    
+    if (this.kilboy && this.purpleHitboxes) {
+      // Collision with purple hitboxes - makes them fall when player is jumping up
       this.physics.add.collider(
         this.kilboy,
-        this.pipes,
-        this.gameOver,
+        this.purpleHitboxes,
+        this.handlePurpleHitboxCollision,
         undefined,
         this
       );
-      
-
-      
-
     }
   }
 
@@ -294,7 +352,8 @@ class PlayScene extends BaseScene {
       .image(this.config.width - 60, this.config.height - 10, "pause")
       .setOrigin(1)
       .setInteractive()
-      .setScale(2.8);
+      .setScale(2.8)
+      .setDepth(10); // Ensure pause button is on top of all game objects
 
     pauseButton.on("pointerdown", () => {
       this.isPaused = true;
@@ -310,12 +369,21 @@ class PlayScene extends BaseScene {
   }
 
   private checkGameStatus(): void {
-    if (
-      this.kilboy &&
-      (this.kilboy.y <= 0 ||
-        this.kilboy.y >= this.config.height - this.kilboy.height)
-    ) {
-      this.gameOver();
+    if (this.kilboy) {
+      // Check if player hits the top of the screen
+      if (this.kilboy.y <= 0) {
+        if (!this.isInvincible) {
+          this.gameOver();
+        }
+      }
+      
+      // Check if player hits the bottom of the screen - stop falling but don't die
+      if (this.kilboy.y >= this.config.height - this.kilboy.height) {
+        this.kilboy.y = this.config.height - this.kilboy.height; // Stop at bottom
+        if (this.kilboy.body && this.kilboy.body instanceof Phaser.Physics.Arcade.Body) {
+          this.kilboy.body.setVelocityY(0); // Stop falling
+        }
+      }
     }
   }
 
@@ -334,11 +402,11 @@ class PlayScene extends BaseScene {
       ...difficulty.pipeHorizontalDistanceRange
     );
 
-    upPipe.x = rightMostX + pipeHorizontalDistance;
-    upPipe.y = pipeVerticalPosition;
+    upPipe.x = Math.round(rightMostX + pipeHorizontalDistance);
+    upPipe.y = Math.round(pipeVerticalPosition);
 
-    lowPipe.x = upPipe.x;
-    lowPipe.y = upPipe.y + pipeVerticalDistance;
+    lowPipe.x = Math.round(upPipe.x);
+    lowPipe.y = Math.round(upPipe.y + pipeVerticalDistance);
     
     // Position the red hitbox to match the red rectangle in the container
     if (lowPipe && (lowPipe as any).redHitbox) {
@@ -354,6 +422,36 @@ class PlayScene extends BaseScene {
       blueHitbox.y = upPipe.y;
     }
     
+    // Position individual purple hitboxes with their bottom edge aligned with the top edge of the blue hitbox
+    if (upPipe && (upPipe as any).purpleHitboxes) {
+      const pipeHitboxes = (upPipe as any).purpleHitboxes as Phaser.GameObjects.Rectangle[];
+      const pipeX = upPipe.x;
+      const pipeY = upPipe.y;
+      
+      pipeHitboxes.forEach((hitbox, index) => {
+        const row = Math.floor(index / 2);
+        const col = index % 2;
+        
+        // Stop any active tweens on this hitbox
+        this.tweens.killTweensOf(hitbox);
+        
+        // Calculate exact position - ensure it matches the pipe's position exactly
+        const exactX = Math.round(pipeX + (col * 26)) - 2; // Offset 2 pixels to the left
+        const exactY = Math.round(pipeY - 312 + (row * 26));
+        
+        // Reset position relative to pipe - use setPosition for precise positioning
+        hitbox.setPosition(exactX, exactY);
+        hitbox.setAlpha(1); // Reset opacity to 100%
+        
+        if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
+          hitbox.body.setGravityY(0); // Remove gravity
+          hitbox.body.setVelocityY(0); // Stop any falling motion
+          hitbox.body.setVelocityX(-200); // Reset horizontal velocity to match pipe movement
+          hitbox.body.reset(exactX, exactY); // Force body position reset
+        }
+      });
+    }
+    
     // Move green hitboxes with the same velocity
     if (this.greenHitboxes) {
       this.greenHitboxes.setVelocityX(-200);
@@ -362,6 +460,11 @@ class PlayScene extends BaseScene {
     // Move blue hitboxes with the same velocity
     if (this.blueHitboxes) {
       this.blueHitboxes.setVelocityX(-200);
+    }
+    
+    // Move purple hitboxes with the same velocity
+    if (this.purpleHitboxes) {
+      this.purpleHitboxes.setVelocityX(-200);
     }
   }
 
@@ -411,6 +514,34 @@ class PlayScene extends BaseScene {
     }
   }
 
+  private canCollide(kilboy: Phaser.GameObjects.GameObject, pipe: Phaser.GameObjects.GameObject): boolean {
+    return !this.isInvincible;
+  }
+
+  private handlePurpleHitboxCollision(kilboy: Phaser.GameObjects.GameObject, purpleHitbox: Phaser.GameObjects.GameObject): void {
+    // Check if player is jumping upward (negative Y velocity)
+    if (this.kilboy && this.kilboy.body.velocity.y < 0) {
+      // Apply gravity to the individual purple hitbox
+      const hitbox = purpleHitbox as Phaser.GameObjects.Rectangle;
+      if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
+        hitbox.body.setGravityY(400); // Same gravity as player
+      }
+      // Fade out the hitbox over 300ms
+      this.tweens.add({
+        targets: hitbox,
+        alpha: 0,
+        duration: 300,
+        ease: 'Linear',
+      });
+    }
+  }
+
+  private handleCollision(): void {
+    if (!this.isInvincible) {
+      this.gameOver();
+    }
+  }
+
   private gameOver(): void {
     this.isGameOver = true;
     this.physics.pause();
@@ -454,6 +585,7 @@ class PlayScene extends BaseScene {
     if (isOverlapping) {
       (this.kilboy.body as Phaser.Physics.Arcade.Body).setGravityY(0);
       (this.kilboy.body as Phaser.Physics.Arcade.Body).setVelocityY(0);
+      this.kilboy.setTexture("kilboy_run");
     } else {
       (this.kilboy.body as Phaser.Physics.Arcade.Body).setGravityY(400);
     }
@@ -508,6 +640,61 @@ class PlayScene extends BaseScene {
         rect.setAlpha(0.2); // 20% opacity
       }
     });
+  }
+
+  private setInvincible(invincible: boolean): void {
+    this.isInvincible = invincible;
+    if (this.kilboy) {
+      if (invincible) {
+        this.startInvincibleFlash();
+      } else {
+        this.stopInvincibleFlash();
+        this.kilboy.setAlpha(1); // 100% opacity
+      }
+    }
+  }
+
+  private enableInvincibility(): void {
+    this.setInvincible(true);
+  }
+
+  private startInvincibleFlash(): void {
+    // Stop any existing flash timer
+    this.stopInvincibleFlash();
+    
+    // Start flashing effect
+    this.invincibleFlashTimer = this.time.addEvent({
+      delay: 40, // Flash every 200ms
+      callback: this.toggleInvincibleOpacity,
+      callbackScope: this,
+      loop: true
+    });
+  }
+
+  private stopInvincibleFlash(): void {
+    if (this.invincibleFlashTimer) {
+      this.invincibleFlashTimer.remove();
+      this.invincibleFlashTimer = undefined;
+    }
+  }
+
+  private toggleInvincibleOpacity(): void {
+    if (this.kilboy && this.isInvincible) {
+      // Animate between 50% and 100% opacity
+      const currentAlpha = this.kilboy.alpha;
+      const targetAlpha = currentAlpha === 0.1 ? .9 : 0.1;
+      
+      this.tweens.add({
+        targets: this.kilboy,
+        alpha: targetAlpha,
+        duration: 40, // 200ms animation
+        //ease: 'Sine.easeInOut'
+      });
+    }
+  }
+
+  private disableInvincibility(): void {
+    this.setInvincible(false);
   }
 
   private increaseScore(): void {

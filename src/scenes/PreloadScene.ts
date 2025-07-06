@@ -9,6 +9,7 @@ class PreloadScene extends Phaser.Scene {
     this.load.image("sky-bg", "assets/sky.png");
     this.load.image("kilboy", "assets/kilboy.png");
     this.load.image("kilboy2", "assets/kilboy_swing.png");
+    this.load.image("kilboy_run", "assets/kilboy_run.png");
     //     this.load.spritesheet("kilboy", "assets/kilboy.png", {
     //       frameWidth: 63,
     //       frameHeight: 66,
