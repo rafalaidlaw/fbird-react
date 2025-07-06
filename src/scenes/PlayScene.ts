@@ -24,6 +24,7 @@ class PlayScene extends BaseScene {
   private isGameOver: boolean = false;
   private isInvincible: boolean = false;
   private invincibleFlashTimer?: Phaser.Time.TimerEvent;
+  private isFading: boolean = false;
   private pipeHorizontalDistance: number = 0;
   private pipeVerticalDistanceRange: [number, number] = [150, 250];
   private pipeHorizontalDistanceRange: [number, number] = [450, 500];
@@ -275,6 +276,9 @@ class PlayScene extends BaseScene {
       // Store reference to blue hitbox for positioning
       (upperPipeContainer as any).blueHitbox = blueHitbox;
       
+      // Store reference to visual blue rectangle for resetting
+      (upperPipeContainer as any).blueRect = blueRect;
+      
       // Store reference to purple hitboxes for positioning
       (upperPipeContainer as any).purpleHitbox = this.purpleHitboxes;
 
@@ -418,8 +422,25 @@ class PlayScene extends BaseScene {
     // Position the blue hitbox to match the blue rectangle in the container
     if (upPipe && (upPipe as any).blueHitbox) {
       const blueHitbox = (upPipe as any).blueHitbox;
-      blueHitbox.x = upPipe.x;
+      blueHitbox.x = upPipe.x - 2; // Offset 2 pixels to the left
       blueHitbox.y = upPipe.y;
+      
+      // Reset blue hitbox properties when pipe is repositioned
+      if (blueHitbox.body && blueHitbox.body instanceof Phaser.Physics.Arcade.Body) {
+        blueHitbox.body.setGravityY(0);
+        blueHitbox.body.setVelocityY(0);
+        blueHitbox.setAlpha(1);
+        this.tweens.killTweensOf(blueHitbox);
+        // Force body position reset to match visual position
+        blueHitbox.body.reset(upPipe.x - 2, upPipe.y);
+      }
+      
+      // Reset visual blue rectangle
+      if (upPipe && (upPipe as any).blueRect) {
+        const blueRect = (upPipe as any).blueRect;
+        blueRect.setAlpha(0); // Reset to original invisible state
+        this.tweens.killTweensOf(blueRect);
+      }
     }
     
     // Position individual purple hitboxes with their bottom edge aligned with the top edge of the blue hitbox
@@ -450,6 +471,20 @@ class PlayScene extends BaseScene {
           hitbox.body.reset(exactX, exactY); // Force body position reset
         }
       });
+      
+      // Reset fading flag when pipe is recycled
+      this.isFading = false;
+      
+      // Reset blue hitboxes gravity when pipe is recycled
+      if (this.blueHitboxes) {
+        this.blueHitboxes.getChildren().forEach((hitbox) => {
+          const blueHitbox = hitbox as Phaser.Physics.Arcade.Sprite;
+          if (blueHitbox.body && blueHitbox.body instanceof Phaser.Physics.Arcade.Body) {
+            blueHitbox.body.setGravityY(0);
+            blueHitbox.body.setVelocityY(0);
+          }
+        });
+      }
     }
     
     // Move green hitboxes with the same velocity
@@ -533,7 +568,79 @@ class PlayScene extends BaseScene {
         duration: 300,
         ease: 'Linear',
       });
+      this.isFading = true; // Set fading to true when fading starts
+      
+      // Find and trigger fall for hitboxes below this one
+      this.triggerFallForHitboxesBelow(hitbox);
     }
+  }
+  
+  private triggerFallForHitboxesBelow(hitHitbox: Phaser.GameObjects.Rectangle): void {
+    // Add 50ms delay before triggering fall for hitboxes below
+    this.time.delayedCall(50, () => {
+      // Find which pipe this hitbox belongs to
+      if (this.pipes) {
+        this.pipes.getChildren().forEach((pipe) => {
+          const upperPipe = pipe as Phaser.Physics.Arcade.Sprite;
+          if (upperPipe && (upperPipe as any).purpleHitboxes) {
+            const pipeHitboxes = (upperPipe as any).purpleHitboxes as Phaser.GameObjects.Rectangle[];
+            
+            // Find the index of the hit hitbox
+            const hitIndex = pipeHitboxes.indexOf(hitHitbox);
+            if (hitIndex !== -1) {
+              const hitRow = Math.floor(hitIndex / 2);
+              const hitCol = hitIndex % 2;
+              
+              // Trigger fall for hitboxes in the same column but below
+              pipeHitboxes.forEach((hitbox, index) => {
+                const row = Math.floor(index / 2);
+                const col = index % 2;
+                
+                // If it's the same column but below the hit hitbox
+                if (col === hitCol && row > hitRow) {
+                  if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
+                    hitbox.body.setGravityY(400); // Apply gravity
+                  }
+                  // Fade out over 500ms
+                  this.tweens.add({
+                    targets: hitbox,
+                    alpha: 0,
+                    duration: 500,
+                    ease: 'Linear',
+                  });
+                }
+              });
+              
+              // Trigger fall for the blue hitbox associated with this pipe
+              if (upperPipe && (upperPipe as any).blueHitbox) {
+                const blueHitbox = (upperPipe as any).blueHitbox;
+                if (blueHitbox.body && blueHitbox.body instanceof Phaser.Physics.Arcade.Body) {
+                  blueHitbox.body.setGravityY(400);
+                  // Fade out the blue hitbox over 500ms
+                  this.tweens.add({
+                    targets: blueHitbox,
+                    alpha: 0,
+                    duration: 500,
+                    ease: 'Linear',
+                  });
+                }
+                
+                // Also fade the visual blue rectangle
+                if (upperPipe && (upperPipe as any).blueRect) {
+                  const blueRect = (upperPipe as any).blueRect;
+                  this.tweens.add({
+                    targets: blueRect,
+                    alpha: 0,
+                    duration: 500,
+                    ease: 'Linear',
+                  });
+                }
+              }
+            }
+          }
+        });
+      }
+    });
   }
 
   private handleCollision(): void {
