@@ -7,14 +7,15 @@ class ScoreScene extends BaseScene {
 
   create(): void {
     super.create();
-    const bestScore = localStorage.getItem("bestScore");
-    this.add
-      .text(
-        ...this.screenCenter,
-        `Best Score: ${bestScore || 0}`,
-        this.fontOptions
-      )
-      .setOrigin(0.5);
+    // Removed best score display
+    // const bestScore = localStorage.getItem("bestScore");
+    // this.add
+    //   .text(
+    //     ...this.screenCenter,
+    //     `Best Score: ${bestScore || 0}`,
+    //     this.fontOptions
+    //   )
+    //   .setOrigin(0.5);
   }
 }
 

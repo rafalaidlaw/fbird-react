@@ -10,6 +10,10 @@ export default class PipeManager {
   public blueHitboxes: Phaser.Physics.Arcade.Group;
   public purpleHitboxes: Phaser.Physics.Arcade.Group;
 
+  // Add these constants for column logic
+  private static readonly numColumns = 5;
+  private static readonly hitboxWidth = 12;
+
   constructor(scene: Phaser.Scene, config: any, difficulties: any, currentDifficulty: string) {
     this.scene = scene;
     this.config = config;
@@ -22,36 +26,36 @@ export default class PipeManager {
   }
 
   createPipes(PIPES_TO_RENDER: number) {
+    const numColumns = PipeManager.numColumns;
+    const hitboxWidth = PipeManager.hitboxWidth;
+    const blueWidth = numColumns * hitboxWidth;
     for (let i = 0; i < PIPES_TO_RENDER; i++) {
       // Create upper pipe as a container with orange rectangle
       const upperPipeContainer = this.scene.add.container(0, 0);
       // Add orange rectangle to container
-      const upperOrangeRect = this.scene.add.rectangle(0, 0, 52, 320, 0xff8c00);
+      const upperOrangeRect = this.scene.add.rectangle(0, 0, blueWidth, 320, 0xff8c00, 0); // alpha 0
       upperOrangeRect.setOrigin(0, 1);
       upperPipeContainer.add(upperOrangeRect);
       // Add blue rectangle as child of the container
-      const blueRect = this.scene.add.rectangle(0, 0, 52, 16, 0x0000ff, 0);
+      const blueRect = this.scene.add.rectangle(0, 0, blueWidth, 16, 0x0000ff, 0);
       blueRect.setOrigin(0, 0);
       upperPipeContainer.add(blueRect);
       // Create separate hitbox for blue rectangle
-      const blueHitbox = this.scene.add.rectangle(0, 0, 52, 16, 0x00ffff, 0.5);
+      const blueHitbox = this.scene.add.rectangle(0, 0, blueWidth, 16, 0x00ffff, 0.5);
       blueHitbox.setOrigin(0, 0);
       this.scene.physics.add.existing(blueHitbox);
       (blueHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
       this.blueHitboxes.add(blueHitbox);
-      // Create grid of colored hitboxes for this pipe (5 across, 24 up)
-      const colors = [
-        0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff, 0xff8000, 0x8000ff, 0xff0080, 0x80ff00, 0x0080ff, 0xff8000,
-      ];
+      // Create grid of colored hitboxes for this pipe (numColumns across, 24 up)
+      // All cubes orange
       const pipeHitboxes: Phaser.GameObjects.Rectangle[] = [];
       for (let row = 0; row < 24; row++) {
-        for (let col = 0; col < 5; col++) {
-          const colorIndex = (row * 5 + col) % colors.length;
-          const hitbox = this.scene.add.rectangle(0, 0, 12, 12, colors[colorIndex], 0.5);
+        for (let col = 0; col < numColumns; col++) {
+          const hitbox = this.scene.add.rectangle(0, 0, hitboxWidth, hitboxWidth, 0xff8c00, 1); // orange, fully opaque
           hitbox.setOrigin(0, 0);
           this.scene.physics.add.existing(hitbox);
           (hitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
-          (hitbox.body as Phaser.Physics.Arcade.Body).setSize(12, 12);
+          (hitbox.body as Phaser.Physics.Arcade.Body).setSize(hitboxWidth, hitboxWidth);
           this.purpleHitboxes.add(hitbox);
           pipeHitboxes.push(hitbox);
         }
@@ -59,23 +63,23 @@ export default class PipeManager {
       (upperPipeContainer as any).purpleHitboxes = pipeHitboxes;
       this.scene.physics.add.existing(upperPipeContainer);
       (upperPipeContainer.body as Phaser.Physics.Arcade.Body).setImmovable(true);
-      (upperPipeContainer.body as Phaser.Physics.Arcade.Body).setSize(52, 320);
+      (upperPipeContainer.body as Phaser.Physics.Arcade.Body).setSize(blueWidth, 320);
       (upperPipeContainer.body as Phaser.Physics.Arcade.Body).setOffset(0, -320);
       this.pipes.add(upperPipeContainer as any);
       // Create lower pipe as a container with orange rectangle
       const lowerPipeContainer = this.scene.add.container(0, 0);
-      const orangeRect = this.scene.add.rectangle(0, 0, 52, 320, 0xff8c00);
+      const orangeRect = this.scene.add.rectangle(0, 0, blueWidth, 320, 0xff8c00);
       orangeRect.setOrigin(0, 0);
       lowerPipeContainer.add(orangeRect);
-      const redRect = this.scene.add.rectangle(0, 0, 52, 16, 0xff0000, 0);
+      const redRect = this.scene.add.rectangle(0, 0, blueWidth, 16, 0xff0000, 0);
       redRect.setOrigin(0, 0);
       lowerPipeContainer.add(redRect);
       this.scene.physics.add.existing(lowerPipeContainer);
       (lowerPipeContainer.body as Phaser.Physics.Arcade.Body).setImmovable(true);
-      (lowerPipeContainer.body as Phaser.Physics.Arcade.Body).setSize(52, 320);
+      (lowerPipeContainer.body as Phaser.Physics.Arcade.Body).setSize(blueWidth, 320);
       (lowerPipeContainer.body as Phaser.Physics.Arcade.Body).setOffset(0, 16);
       // Create separate hitbox for red rectangle
-      const redHitbox = this.scene.add.rectangle(0, 0, 52, 16, 0x00ff00, 0.5);
+      const redHitbox = this.scene.add.rectangle(0, 0, blueWidth, 16, 0x00ff00, 0.5);
       redHitbox.setOrigin(0, 0);
       this.scene.physics.add.existing(redHitbox);
       (redHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
@@ -105,6 +109,8 @@ export default class PipeManager {
   }
 
   placePipe(upPipe: any, lowPipe: any) {
+    const numColumns = PipeManager.numColumns;
+    const hitboxWidth = PipeManager.hitboxWidth;
     const difficulty = this.difficulties[this.currentDifficulty];
     const rightMostX = this.getRightMostPipe();
     const pipeVerticalDistance = Phaser.Math.Between(
@@ -139,10 +145,12 @@ export default class PipeManager {
         this.scene.tweens.killTweensOf(blueHitbox);
         blueHitbox.body.reset(upPipe.x - 2, upPipe.y);
       }
+      blueHitbox.angle = 0; // Reset rotation on recycle
       if (upPipe && (upPipe as any).blueRect) {
         const blueRect = (upPipe as any).blueRect;
         blueRect.setAlpha(0);
         this.scene.tweens.killTweensOf(blueRect);
+        blueRect.angle = 0; // Reset rotation on recycle
       }
     }
     if (upPipe && (upPipe as any).purpleHitboxes) {
@@ -150,11 +158,11 @@ export default class PipeManager {
       const pipeX = upPipe.x;
       const pipeY = upPipe.y;
       pipeHitboxes.forEach((hitbox, index) => {
-        const row = Math.floor(index / 5);
-        const col = index % 5;
+        const row = Math.floor(index / numColumns);
+        const col = index % numColumns;
         this.scene.tweens.killTweensOf(hitbox);
-        const exactX = Math.round(pipeX + (col * 12)) - 2;
-        const exactY = Math.round(pipeY - 288 + (row * 12));
+        const exactX = Math.round(pipeX + (col * hitboxWidth)) - 2;
+        const exactY = Math.round(pipeY - 288 + (row * hitboxWidth));
         hitbox.setPosition(exactX, exactY);
         hitbox.setAlpha(1);
         if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
@@ -214,106 +222,16 @@ export default class PipeManager {
     });
   }
 
-  // Add this method to handle purple hitbox collision
-  handlePurpleHitboxCollision(kilboy: Phaser.GameObjects.GameObject, purpleHitbox: Phaser.GameObjects.GameObject): void {
-    // Check if player is jumping upward (negative Y velocity)
-    const player = (this.scene as any).player;
-    if (player && player.sprite && player.sprite.body && player.sprite.body.velocity.y < 0) {
-      // Apply gravity to the individual purple hitbox
-      const hitbox = purpleHitbox as Phaser.GameObjects.Rectangle;
-      if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
-        hitbox.body.setGravityY(400); // Same gravity as player
+  // Stops all blue box (hitbox and rect) animations
+  public stopAllBlueBoxAnimations(): void {
+    this.pipes.getChildren().forEach((pipe: any) => {
+      if (pipe && pipe.blueHitbox) {
+        this.scene.tweens.killTweensOf(pipe.blueHitbox);
+        // Do not reset angle
       }
-      // Fade out the hitbox over 300ms
-      this.scene.tweens.add({
-        targets: hitbox,
-        alpha: 0,
-        duration: 300,
-        ease: 'Linear',
-      });
-      // Find and trigger fall for hitboxes below this one
-      this.triggerFallForHitboxesBelow(hitbox);
-    }
-  }
-
-  // Add this method to trigger fall for hitboxes below
-  triggerFallForHitboxesBelow(hitHitbox: Phaser.GameObjects.Rectangle): void {
-    // Add 50ms delay before triggering fall for hitboxes below
-    this.scene.time.delayedCall(50, () => {
-      // Find which pipe this hitbox belongs to
-      if (this.pipes) {
-        this.pipes.getChildren().forEach((pipe) => {
-          const upperPipe = pipe as Phaser.Physics.Arcade.Sprite;
-          if (upperPipe && (upperPipe as any).purpleHitboxes) {
-            const pipeHitboxes = (upperPipe as any).purpleHitboxes as Phaser.GameObjects.Rectangle[];
-            // Find the index of the hit hitbox
-            const hitIndex = pipeHitboxes.indexOf(hitHitbox);
-            if (hitIndex !== -1) {
-              const hitRow = Math.floor(hitIndex / 5);
-              const hitCol = hitIndex % 5;
-              // Trigger fall for hitboxes in the same column but below
-              pipeHitboxes.forEach((hitbox, index) => {
-                const row = Math.floor(index / 5);
-                const col = index % 5;
-                // If it's the same column but below the hit hitbox
-                if (col === hitCol && row > hitRow) {
-                  if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
-                    hitbox.body.setGravityY(400); // Apply gravity
-                  }
-                  // Fade out over 500ms
-                  this.scene.tweens.add({
-                    targets: hitbox,
-                    alpha: 0,
-                    duration: 500,
-                    ease: 'Linear',
-                  });
-                }
-              });
-              // Trigger fall for the blue hitbox associated with this pipe only if the last column (col 0) is hit
-              if (hitCol === 0 && upperPipe && (upperPipe as any).blueHitbox) {
-                const blueHitbox = (upperPipe as any).blueHitbox;
-                if (blueHitbox.body && blueHitbox.body instanceof Phaser.Physics.Arcade.Body) {
-                  blueHitbox.body.setGravityY(400);
-                  // Fade out the blue hitbox over 500ms
-                  this.scene.tweens.add({
-                    targets: blueHitbox,
-                    alpha: 0,
-                    duration: 500,
-                    ease: 'Linear',
-                  });
-                  // Rotate the blue hitbox as it falls (only if game is not over)
-                  if (!(this.scene as any).isGameOver) {
-                    this.scene.tweens.add({
-                      targets: blueHitbox,
-                      angle: -45,
-                      duration: 500,
-                      ease: 'Linear',
-                    });
-                  }
-                }
-                // Also fade the visual blue rectangle
-                if (upperPipe && (upperPipe as any).blueRect) {
-                  const blueRect = (upperPipe as any).blueRect;
-                  this.scene.tweens.add({
-                    targets: blueRect,
-                    alpha: 0,
-                    duration: 500,
-                    ease: 'Linear',
-                  });
-                  // Rotate the visual blue rectangle as it falls (only if game is not over)
-                  if (!(this.scene as any).isGameOver) {
-                    this.scene.tweens.add({
-                      targets: blueRect,
-                      angle: -45,
-                      duration: 500,
-                      ease: 'Linear',
-                    });
-                  }
-                }
-              }
-            }
-          }
-        });
+      if (pipe && pipe.blueRect) {
+        this.scene.tweens.killTweensOf(pipe.blueRect);
+        // Do not reset angle
       }
     });
   }

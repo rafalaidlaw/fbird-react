@@ -22,16 +22,12 @@ class PlayScene extends BaseScene {
   private isTouchingBlueHitbox: boolean = false;
   private isPaused: boolean = false;
   private isGameOver: boolean = false;
-  private isInvincible: boolean = false;
-  private invincibleFlashTimer?: Phaser.Time.TimerEvent;
   private flapVELOCITY: number = 270;
   private initialFlapVelocity: number = 800;
   private decelerationRate: number = 0.8;
   private frameCount: number = 0;
   private score: number = 0;
   private jumpCount: number = 0;
-  private jumpCountAtDeath: number = 0;
-  private lastJumpUIState: number[] = [0, 0];
   private currentDifficulty: keyof Difficulties = "easy";
   private difficulties: Difficulties = {
     easy: {
@@ -60,7 +56,6 @@ class PlayScene extends BaseScene {
   create(): void {
     super.create();
     this.isGameOver = false;
-    this.isInvincible = false;
     this.currentDifficulty = "easy";
     this.player = new Player(this, this.config.startPosition);
     this.pipeManager = new PipeManager(this, this.config, this.difficulties, this.currentDifficulty);
@@ -70,6 +65,7 @@ class PlayScene extends BaseScene {
     const bestScore = localStorage.getItem("bestScore");
     this.uiManager.createScoreUI(0, bestScore ? parseInt(bestScore, 10) : 0);
     this.uiManager.createJumpRectangles();
+    this.uiManager.createHealthUI(3);
     this.createPause();
     this.handleInputs();
     this.listenToEvents();
@@ -84,6 +80,8 @@ class PlayScene extends BaseScene {
     );
     this.checkGreenHitboxOverlap();
     this.checkBlueHitboxOverlap();
+    this.uiManager.updateHealthUI(this.player.getHealth());
+    this.player.updateAttackHitboxPosition();
     if (this.isGameOver) {
       this.stopAllAnimationsOnDeath();
       return;
@@ -97,8 +95,9 @@ class PlayScene extends BaseScene {
       this.frameCount = 0;
     }
     if (this.player && this.player.sprite.body && this.player.sprite.body.velocity.y > 0) {
-      this.player.sprite.setTexture("kilboy");
-      this.player.sprite.body.setSize(0, 0);
+      if (!this.player.isInvincible) {
+        this.player.sprite.setTexture("kilboy");
+      }
       if (!this.isGameOver) {
         this.jumpCount = 0;
         this.updateJumpRectangles();
@@ -159,7 +158,13 @@ class PlayScene extends BaseScene {
         this.pipeManager.purpleHitboxes,
         (obj1: any, obj2: any) => {
           if (obj1 instanceof Phaser.GameObjects.GameObject && obj2 instanceof Phaser.GameObjects.GameObject) {
-            this.pipeManager.handlePurpleHitboxCollision(obj1, obj2);
+            const shouldTakeDamage = this.player.handlePurpleHitboxCollision(obj2, this.pipeManager, this.isGameOver);
+            if (shouldTakeDamage && !this.player.isInvincible) {
+              if (this.player.takeHit()) {
+                this.gameOver();
+              }
+              this.uiManager.updateHealthUI(this.player.getHealth());
+            }
           }
         },
         undefined,
@@ -197,14 +202,25 @@ class PlayScene extends BaseScene {
   private checkGameStatus(): void {
     if (this.player && this.player.sprite) {
       if (this.player.sprite.y <= 0) {
-        if (!this.isInvincible) {
-          this.jumpCountAtDeath = this.lastJumpUIState[0];
-          this.gameOver();
+        if (!this.player.isInvincible) {
+          if (this.player.takeHit()) {
+            this.gameOver();
+          }
+          this.uiManager.updateHealthUI(this.player.getHealth());
+        }
+        // Prevent the player from going above the screen
+        this.player.sprite.y = 0;
+        if (this.player.sprite.body && this.player.sprite.body instanceof Phaser.Physics.Arcade.Body) {
+          this.player.sprite.body.setVelocityY(0);
         }
       }
       if (this.player.sprite.y >= this.config.height - this.player.sprite.height) {
         this.player.sprite.y = this.config.height - this.player.sprite.height;
-        if (this.player.sprite.body && this.player.sprite.body instanceof Phaser.Physics.Arcade.Body) {
+        if (
+          this.player.sprite.body &&
+          this.player.sprite.body instanceof Phaser.Physics.Arcade.Body &&
+          this.player.sprite.body.velocity.y > 0 // Only stop downward movement
+        ) {
           this.player.sprite.body.setVelocityY(0);
         }
       }
@@ -253,7 +269,8 @@ class PlayScene extends BaseScene {
   }
 
   private stopAllAnimationsOnDeath(): void {
-    this.uiManager.updateJumpRectanglesAtDeath(this.jumpCountAtDeath);
+    this.uiManager.updateJumpRectanglesAtDeath();
+    this.pipeManager.stopAllBlueBoxAnimations();
   }
 
   private stopGravity(): void {
@@ -314,60 +331,6 @@ class PlayScene extends BaseScene {
   private updateJumpRectangles(): void {
     if (this.isGameOver) return;
     this.uiManager.updateJumpRectangles(this.jumpCount);
-    let litCount = 0;
-    for (let i = 0; i < this.uiManager.getJumpRectangles().length; i++) {
-      if (i >= (3 - this.jumpCount)) litCount++;
-    }
-    this.lastJumpUIState[0] = this.lastJumpUIState[1];
-    this.lastJumpUIState[1] = litCount;
-  }
-
-  private setInvincible(invincible: boolean): void {
-    this.isInvincible = invincible;
-    this.player.setInvincible(invincible);
-  }
-
-  private enableInvincibility(): void {
-    this.setInvincible(true);
-  }
-
-  private startInvincibleFlash(): void {
-    // Stop any existing flash timer
-    this.stopInvincibleFlash();
-    
-    // Start flashing effect
-    this.invincibleFlashTimer = this.time.addEvent({
-      delay: 40, // Flash every 200ms
-      callback: this.toggleInvincibleOpacity,
-      callbackScope: this,
-      loop: true
-    });
-  }
-
-  private stopInvincibleFlash(): void {
-    if (this.invincibleFlashTimer) {
-      this.invincibleFlashTimer.remove();
-      this.invincibleFlashTimer = undefined;
-    }
-  }
-
-  private toggleInvincibleOpacity(): void {
-    if (this.player && this.isInvincible) {
-      // Animate between 50% and 100% opacity
-      const currentAlpha = this.player.sprite.alpha;
-      const targetAlpha = currentAlpha === 0.1 ? .9 : 0.1;
-      
-      this.tweens.add({
-        targets: this.player.sprite,
-        alpha: targetAlpha,
-        duration: 40, // 200ms animation
-        //ease: 'Sine.easeInOut'
-      });
-    }
-  }
-
-  private disableInvincibility(): void {
-    this.setInvincible(false);
   }
 
   private increaseScore(): void {
@@ -395,8 +358,11 @@ class PlayScene extends BaseScene {
   }
 
   private handleCollision(): void {
-    if (!this.isInvincible) {
-      this.gameOver();
+    if (!this.player.isInvincible) {
+      if (this.player.takeHit()) {
+        this.gameOver();
+      }
+      this.uiManager.updateHealthUI(this.player.getHealth());
     }
   }
 

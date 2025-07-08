@@ -10,6 +10,7 @@ class PreloadScene extends Phaser.Scene {
     this.load.image("kilboy", "assets/kilboy.png");
     this.load.image("kilboy2", "assets/kilboy_swing.png");
     this.load.image("kilboy_run", "assets/kilboy_run.png");
+    this.load.image("kilboy_hurt", "assets/kilboy_hurt.png");
     //     this.load.spritesheet("kilboy", "assets/kilboy.png", {
     //       frameWidth: 63,
     //       frameHeight: 66,
@@ -17,6 +18,8 @@ class PreloadScene extends Phaser.Scene {
     this.load.image("pipe", "assets/pipe.png");
     this.load.image("pause", "assets/pause.png");
     this.load.image("back", "assets/back.png");
+    this.load.image("health-face", "assets/health-face.png");
+    this.load.image("dead-face", "assets/dead-face.png");
   }
 
   create(): void {

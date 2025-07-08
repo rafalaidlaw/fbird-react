@@ -5,25 +5,28 @@ export default class UIManager {
   private scoreText: Phaser.GameObjects.Text | null = null;
   private bestScoreText: Phaser.GameObjects.Text | null = null;
   private jumpRectangles: Phaser.GameObjects.Rectangle[] = [];
+  private lastJumpUIState: number[] = [0, 0]; // Track last two lit counts
+  private healthIcons: Phaser.GameObjects.Image[] = [];
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
   }
 
   createScoreUI(score: number, bestScore: number) {
-    this.scoreText = this.scene.add.text(16, 16, `Score: ${score}`, {
-      fontSize: "32px",
-      color: "#000",
-    });
-    this.bestScoreText = this.scene.add.text(16, 52, `Best Score: ${bestScore}`, {
-      fontSize: "18px",
-      color: "#000",
-    });
+    const screenWidth = this.scene.sys.game.config.width as number;
+    this.scoreText = this.scene.add.text(screenWidth - 16, 16, `${score}`, {
+      fontSize: '32px',
+      color: '#fff',
+      fontFamily: 'Arial',
+      stroke: '#000',
+      strokeThickness: 4
+    }).setOrigin(1, 0); // Right align
+    // Best score display is hidden
   }
 
   updateScore(score: number) {
     if (this.scoreText) {
-      this.scoreText.setText(`Score: ${score}`);
+      this.scoreText.setText(`${score}`);
     }
   }
 
@@ -37,18 +40,52 @@ export default class UIManager {
   }
 
   updateJumpRectangles(jumpCount: number) {
+    let litCount = 0;
     for (let i = 0; i < this.jumpRectangles.length; i++) {
+      if (i >= (3 - jumpCount)) litCount++;
       this.jumpRectangles[i].setAlpha(i >= (3 - jumpCount) ? 1 : 0.2);
     }
+    // Update history
+    this.lastJumpUIState[0] = this.lastJumpUIState[1];
+    this.lastJumpUIState[1] = litCount;
   }
 
-  updateJumpRectanglesAtDeath(jumpCountAtDeath: number) {
+  getPreviousJumpLitCount(): number {
+    return this.lastJumpUIState[0];
+  }
+
+  updateJumpRectanglesAtDeath(): void {
+    const litCount = this.getPreviousJumpLitCount();
     for (let i = 0; i < this.jumpRectangles.length; i++) {
-      this.jumpRectangles[i].setAlpha(i >= (3 - jumpCountAtDeath) ? 1 : 0.2);
+      this.jumpRectangles[i].setAlpha(i >= (3 - litCount) ? 1 : 0.2);
     }
   }
 
   getJumpRectangles(): Phaser.GameObjects.Rectangle[] {
     return this.jumpRectangles;
+  }
+
+  createHealthUI(maxHealth: number) {
+    // Remove any existing icons
+    this.healthIcons.forEach(icon => icon.destroy());
+    this.healthIcons = [];
+    const iconSpacing = 40;
+    const iconY = 32;
+    for (let i = 0; i < maxHealth; i++) {
+      const icon = this.scene.add.image(16 + i * iconSpacing, iconY, 'health-face').setOrigin(0, 0).setScale(1.2);
+      this.healthIcons.push(icon);
+    }
+  }
+
+  updateHealthUI(currentHealth: number) {
+    for (let i = 0; i < this.healthIcons.length; i++) {
+      if (i < currentHealth) {
+        this.healthIcons[i].setTexture('health-face');
+        this.healthIcons[i].setAlpha(1);
+      } else {
+        this.healthIcons[i].setTexture('dead-face');
+        this.healthIcons[i].setAlpha(1);
+      }
+    }
   }
 } 
