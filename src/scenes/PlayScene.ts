@@ -72,6 +72,9 @@ class PlayScene extends BaseScene {
   }
 
   update(): void {
+    // Sync upper hitbox first, before any movement
+    this.player.syncUpperHitbox();
+    this.player.preUpdate(); // (now does nothing, but kept for structure)
     this.checkGameStatus();
     this.pipeManager.recyclePipes(
       () => this.increaseScore(),
@@ -105,6 +108,17 @@ class PlayScene extends BaseScene {
     }
     this.preventHorizontalPushback();
     this.checkPlayerBoundary();
+    // Sync blueBottomHitbox to follow blueHitbox every frame
+    this.pipeManager.blueHitboxes.getChildren().forEach((blueHitbox: any) => {
+      if (blueHitbox.blueBottomHitbox) {
+        blueHitbox.blueBottomHitbox.x = blueHitbox.x + blueHitbox.width / 2;
+        // blueHitbox.blueBottomHitbox.y = blueHitbox.y + blueHitbox.height + 60; // Keep y fixed
+        if (blueHitbox.blueBottomHitbox.body) {
+          blueHitbox.blueBottomHitbox.body.velocity.x = blueHitbox.body.velocity.x;
+          blueHitbox.blueBottomHitbox.body.velocity.y = blueHitbox.body.velocity.y;
+        }
+      }
+    });
   }
 
   private listenToEvents(): void {
@@ -152,6 +166,20 @@ class PlayScene extends BaseScene {
     if (this.player && this.pipeManager.pipes) {
       // Optionally add pipe collision logic here
     }
+    // Upper hitbox collides with blue boxes
+    if (this.player && this.player.upperHitbox && this.pipeManager.blueHitboxes) {
+      this.physics.add.collider(
+        this.player.upperHitbox,
+        this.pipeManager.blueHitboxes,
+        (obj1: any, obj2: any) => {
+          // Handle blue box collision with upper hitbox
+          this.handleBlueBoxCollision(obj2);
+        },
+        undefined,
+        this
+      );
+    }
+    // Sprite collides with purple boxes
     if (this.player && this.pipeManager.purpleHitboxes) {
       this.physics.add.collider(
         this.player.sprite,
@@ -159,7 +187,9 @@ class PlayScene extends BaseScene {
         (obj1: any, obj2: any) => {
           if (obj1 instanceof Phaser.GameObjects.GameObject && obj2 instanceof Phaser.GameObjects.GameObject) {
             const shouldTakeDamage = this.player.handlePurpleHitboxCollision(obj2, this.pipeManager, this.isGameOver);
-            if (shouldTakeDamage && !this.player.isInvincible) {
+            // Prevent damage if player is in attack swing animation
+            const isInAttackSwing = this.player.sprite.anims.isPlaying && this.player.sprite.anims.currentAnim?.key === "kilboy_swing_anim";
+            if (shouldTakeDamage && !this.player.isInvincible && !isInAttackSwing) {
               if (this.player.takeHit()) {
                 this.gameOver();
               }
@@ -170,6 +200,25 @@ class PlayScene extends BaseScene {
         undefined,
         this
       );
+    }
+  }
+
+  private handleBlueBoxCollision(blueHitbox: any): void {
+    // Handle blue box collision logic here
+    if (this.player && this.player.sprite) {
+      (this.player.sprite.body as Phaser.Physics.Arcade.Body).setVelocityY(25);
+      (this.player.sprite.body as Phaser.Physics.Arcade.Body).setGravityY(400);
+      if (this.player) {
+        this.player.canFlap = false;
+        this.time.delayedCall(45, () => {
+          this.player.canFlap = true;
+        });
+        // Destroy attack hitbox if it exists
+        if (this.player["attackHitbox"]) {
+          this.player["attackHitbox"].destroy();
+          this.player["attackHitbox"] = undefined;
+        }
+      }
     }
   }
 
@@ -288,31 +337,48 @@ class PlayScene extends BaseScene {
   private checkGreenHitboxOverlap(): void {
     if (!this.player || !this.player.sprite || !this.pipeManager.greenHitboxes) return;
     let isOverlapping = false;
+    let firstOverlappingGreen: any = null;
     this.pipeManager.greenHitboxes.getChildren().forEach((hitbox) => {
       if (this.player && this.player.sprite && this.physics.overlap(this.player.sprite, hitbox)) {
         isOverlapping = true;
+        if (!firstOverlappingGreen) firstOverlappingGreen = hitbox;
       }
     });
     if (isOverlapping) {
       (this.player.sprite.body as Phaser.Physics.Arcade.Body).setGravityY(0);
       (this.player.sprite.body as Phaser.Physics.Arcade.Body).setVelocityY(0);
       this.player.sprite.setTexture("kilboy_run");
+      // Set Kilboy's y position to a constant offset above the green box
+      if (firstOverlappingGreen) {
+        this.player.sprite.y = firstOverlappingGreen.y - 48; // Tweak this offset as needed
+      }
     } else {
       (this.player.sprite.body as Phaser.Physics.Arcade.Body).setGravityY(400);
     }
   }
 
   private checkBlueHitboxOverlap(): void {
-    if (!this.player || !this.player.sprite || !this.pipeManager.blueHitboxes) return;
+    if (!this.player || !this.player.upperHitbox || !this.pipeManager.blueHitboxes) return;
     let isOverlapping = false;
     this.pipeManager.blueHitboxes.getChildren().forEach((hitbox) => {
-      if (this.player && this.player.sprite && this.physics.overlap(this.player.sprite, hitbox)) {
+      if (this.player && this.player.upperHitbox && this.physics.overlap(this.player.upperHitbox, hitbox)) {
         isOverlapping = true;
       }
     });
     if (isOverlapping && !this.isTouchingBlueHitbox) {
-      (this.player.sprite.body as Phaser.Physics.Arcade.Body).setVelocityY(0);
+      (this.player.sprite.body as Phaser.Physics.Arcade.Body).setVelocityY(25);
       (this.player.sprite.body as Phaser.Physics.Arcade.Body).setGravityY(400);
+      if (this.player) {
+        this.player.canFlap = false;
+        this.time.delayedCall(45, () => {
+          this.player.canFlap = true;
+        });
+        // Destroy attack hitbox if it exists
+        if (this.player["attackHitbox"]) {
+          this.player["attackHitbox"].destroy();
+          this.player["attackHitbox"] = undefined;
+        }
+      }
       this.isTouchingBlueHitbox = true;
     } else if (!isOverlapping && this.isTouchingBlueHitbox) {
       this.isTouchingBlueHitbox = false;

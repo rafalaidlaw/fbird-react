@@ -7,8 +7,17 @@ export default class Player {
   private invincibleFlashTimer?: Phaser.Time.TimerEvent;
   private health: number = 4;
   private invincibleTimeout?: Phaser.Time.TimerEvent;
-  private attackHitbox?: Phaser.GameObjects.Rectangle;
+  private attackHitbox?: Phaser.GameObjects.Arc;
   private attackHitboxTimer?: Phaser.Time.TimerEvent;
+  public canFlap: boolean = true;
+  // Add separate hitboxes for upper and lower body
+  public upperHitbox?: Phaser.GameObjects.Rectangle;
+  public lowerHitbox?: Phaser.GameObjects.Rectangle;
+  
+  // Attack hitbox configuration - easily adjustable
+  private static readonly ATTACK_RADIUS = 40; // Radius of the attack hitbox
+  private static readonly ATTACK_OFFSET_X = 45; // How far to the right of Kilboy
+  private static readonly ATTACK_OFFSET_Y = -10; // Vertical offset from Kilboy's center
 
   constructor(scene: Phaser.Scene, startPosition: { x: number, y: number }) {
     this.scene = scene;
@@ -16,31 +25,62 @@ export default class Player {
       .sprite(startPosition.x, startPosition.y, "kilboy")
       .setOrigin(0)
       .setDepth(1);
-    // Set hitbox size to 70% of sprite width, height - 8 as before, and offset 5px to the left
-    this.sprite.setBodySize(this.sprite.width * 0.5, this.sprite.height - 8, false);
+    // Create swing animation (non-looping, holds on last frame)
+    this.scene.anims.create({
+      key: "kilboy_swing_anim",
+      frames: [
+        { key: "kilboy_swing_anim1" },
+        { key: "kilboy_swing_anim2" },
+        { key: "kilboy_swing_anim3" },
+      ],
+      frameRate: 12,
+      repeat: 0,
+      showOnStart: true,
+      hideOnComplete: false,
+    });
+    
+    // Create two separate hitboxes instead of one
+    const hitboxWidth = this.sprite.width * 0.5;
+    const hitboxHeight = (this.sprite.height + 2) / 2; // Split height in half
+    
+    // Set sprite body size and offset to match lower hitbox (main collision)
+    this.sprite.setBodySize(hitboxWidth, hitboxHeight, false);
     if (this.sprite.body) {
-      this.sprite.body.setOffset(6, 0);
-    }
-    if (this.sprite.body) {
+      (this.sprite.body as Phaser.Physics.Arcade.Body).setOffset(6, hitboxHeight); // Offset to lower half
       (this.sprite.body as Phaser.Physics.Arcade.Body).gravity.y = 400;
+      (this.sprite.body as Phaser.Physics.Arcade.Body).setBounce(0, 1);
+      (this.sprite.body as Phaser.Physics.Arcade.Body).setDragX(0);
+      (this.sprite.body as Phaser.Physics.Arcade.Body).setMaxVelocity(0, 800);
+      (this.sprite.body as Phaser.Physics.Arcade.Body).pushable = false;
     }
     this.sprite.setCollideWorldBounds(true);
-    // Set world bounds to start 15 pixels from the left edge
     this.scene.physics.world.setBounds(15, 0, this.scene.sys.game.config.width as number - 15, this.scene.sys.game.config.height as number);
-    if (this.sprite.body && this.sprite.body instanceof Phaser.Physics.Arcade.Body) {
-      this.sprite.body.setBounce(0, 1);
-      this.sprite.body.setDragX(0);
-      this.sprite.body.setMaxVelocity(0, 800);
-      this.sprite.body.pushable = false;
+
+    // Upper hitbox for blue box collisions (sensor only)
+    this.upperHitbox = this.scene.add.rectangle(this.sprite.x, this.sprite.y, hitboxWidth, hitboxHeight, 0x0000ff, 0.3);
+    this.scene.physics.add.existing(this.upperHitbox);
+    if (this.upperHitbox.body) {
+      (this.upperHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
+      (this.upperHitbox.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
+      (this.upperHitbox.body as Phaser.Physics.Arcade.Body).moves = false;
+      (this.upperHitbox.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
+      (this.upperHitbox.body as Phaser.Physics.Arcade.Body).setAcceleration(0, 0);
+      (this.upperHitbox.body as Phaser.Physics.Arcade.Body).setDrag(0, 0);
     }
+    this.upperHitbox.setAlpha(0); // Invisible for production
+
+    // Lower hitbox is not needed for collision, only for reference if you want
+    this.lowerHitbox = undefined;
   }
 
   flap(initialFlapVelocity: number) {
+    if (!this.canFlap) return;
     if (this.invincible) return;
     if (this.sprite.body) {
       (this.sprite.body as Phaser.Physics.Arcade.Body).velocity.y = -initialFlapVelocity;
     }
-    this.sprite.setTexture("kilboy2");
+    // Play swing animation (non-looping, holds on last frame)
+    this.sprite.anims.play("kilboy_swing_anim", true);
 
     // Create attack hitbox to the right of Kilboy
     if (this.attackHitbox) {
@@ -51,30 +91,85 @@ export default class Player {
       this.attackHitboxTimer.remove();
       this.attackHitboxTimer = undefined;
     }
-    const body = this.sprite.body as Phaser.Physics.Arcade.Body;
-    const hitboxWidth = body.width;
-    const hitboxHeight = body.height;
-    const attackWidth = 40; // Doubled from 20
-    const attackHeight = hitboxHeight * 2; // 1/3 taller
-    const attackX = this.sprite.x + body.offset.x + hitboxWidth + 100 + 20;
-    const attackY = this.sprite.y + body.offset.y - (attackHeight - hitboxHeight) / 2;
-    this.attackHitbox = this.scene.add.rectangle(attackX, attackY, attackWidth, attackHeight, 0xff0000, 0.3);
+    
+    // Use fixed values for attack hitbox size and position
+    const attackX = this.sprite.x + Player.ATTACK_OFFSET_X;
+    const attackY = this.sprite.y + this.sprite.height / 2 + Player.ATTACK_OFFSET_Y;
+    this.attackHitbox = this.scene.add.circle(attackX, attackY, Player.ATTACK_RADIUS, 0xff0000, 0.3);
     this.scene.physics.add.existing(this.attackHitbox);
     (this.attackHitbox.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
     (this.attackHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
+    // Set circular collision body like in the Phaser example
+    (this.attackHitbox.body as Phaser.Physics.Arcade.Body).setCircle(Player.ATTACK_RADIUS);
+    // Hide the attack hitbox (invisible but still functional)
+    this.attackHitbox.setAlpha(.2);
     // Set up overlap with purple cubes
     this.scene.physics.add.overlap(
-      this.attackHitbox,
+      this.attackHitbox!,
       (this.scene as any).pipeManager?.purpleHitboxes,
       (attack: any, purple: any) => {
+        const pipeManager = (this.scene as any).pipeManager;
+        // Prevent attack if Kilboy is overlapping any blueBottomHitbox
+        // if (pipeManager && pipeManager.blueHitboxes) {
+        //   let isTouchingBlueBottom = false;
+        //   pipeManager.blueHitboxes.getChildren().forEach((blue: any) => {
+        //     if (blue.blueBottomHitbox && this.scene.physics.overlap(this.sprite, blue.blueBottomHitbox)) {
+        //       isTouchingBlueBottom = true;
+        //     }
+        //   });
+        //   if (isTouchingBlueBottom) return;
+        // }
+        // Also prevent attack if the attack hitbox itself is overlapping any blueBottomHitbox
+        // if (pipeManager && pipeManager.blueHitboxes) {
+        //   let attackTouchingBlueBottom = false;
+        //   pipeManager.blueHitboxes.getChildren().forEach((blue: any) => {
+        //     if (blue.blueBottomHitbox && this.scene.physics.overlap(attack, blue.blueBottomHitbox)) {
+        //       attackTouchingBlueBottom = true;
+        //     }
+        //   });
+        //   if (attackTouchingBlueBottom) return;
+        // }
+        // Prevent hit if Kilboy is below the next blue box
+        let nextBlue: any = null;
+        if (pipeManager && pipeManager.blueHitboxes) {
+          const playerX = this.sprite.x;
+          let minDX = Infinity;
+          pipeManager.blueHitboxes.getChildren().forEach((blue: any) => {
+            if (blue.x > playerX && blue.x - playerX +15 < minDX) {
+              minDX = blue.x - playerX;
+              nextBlue = blue;
+            }
+          });
+        }
+        if (nextBlue && this.sprite.y > nextBlue.y) {
+          return; // Block hit if Kilboy is below the blue box
+        }
         // Simulate Kilboy's upward hit on purple cube
+        purple.canDamage = false;
+        // Make the purple box fly away
+        if (purple.body && purple.body instanceof Phaser.Physics.Arcade.Body) {
+          purple.body.setAllowGravity(true);
+          purple.body.setGravityY(800); // Stronger gravity (was 400)
+          // Randomize velocity for more varied destruction effect
+          const randomX = Phaser.Math.Between(70, 110);
+          const randomY = Phaser.Math.Between(-170, -130);
+          purple.body.setVelocity(randomX, randomY);
+        }
+        this.scene.tweens.add({
+          targets: purple,
+          alpha: 0,
+          duration: 1000, // Increased from 300ms to 1000ms
+          ease: 'Linear',
+        });
+        // Make all boxes below in the same column fall and fade out
+        (this.scene as any).pipeManager.triggerFallForHitboxesBelow(purple, false);
         this.handlePurpleHitboxCollision(purple, (this.scene as any).pipeManager, false);
       },
       undefined,
       this
     );
     // Remove attack hitbox after 200ms
-    this.attackHitboxTimer = this.scene.time.delayedCall(200, () => {
+    this.attackHitboxTimer = this.scene.time.delayedCall(500, () => {
       if (this.attackHitbox) {
         this.attackHitbox.destroy();
         this.attackHitbox = undefined;
@@ -126,22 +221,45 @@ export default class Player {
 
   // Handles collision with a purple hitbox
   public handlePurpleHitboxCollision(purpleHitbox: Phaser.GameObjects.GameObject, pipeManager: any, isGameOver: boolean): boolean {
+    // Prevent hit if Kilboy is below the next blue box
+    let nextBlue: any = null;
+    if (pipeManager && pipeManager.blueHitboxes) {
+      const playerX = this.sprite.x;
+      let minDX = Infinity;
+      pipeManager.blueHitboxes.getChildren().forEach((blue: any) => {
+        if (blue.x > playerX && blue.x - playerX < minDX) {
+          minDX = blue.x - playerX;
+          nextBlue = blue;
+        }
+      });
+    }
+    if (nextBlue && this.sprite.y > nextBlue.y) {
+      return false; // Block hit if Kilboy is below the blue box
+    }
+    // Only allow damage if canDamage is not false
+    if ((purpleHitbox as any).canDamage === false) return false;
+    // Always trigger fall for hitboxes below
+    pipeManager.triggerFallForHitboxesBelow(purpleHitbox as Phaser.GameObjects.Rectangle, isGameOver);
     // Check if player is jumping upward (negative Y velocity)
     if (this.sprite && this.sprite.body && (this.sprite.body as Phaser.Physics.Arcade.Body).velocity.y < 0) {
       // Apply gravity to the individual purple hitbox
       const hitbox = purpleHitbox as Phaser.GameObjects.Rectangle;
       if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
-        hitbox.body.setGravityY(400); // Same gravity as player
+        hitbox.body.setAllowGravity(true);
+        hitbox.body.setGravityY(800); // Stronger gravity (was 400)
+        // Randomize velocity for more varied destruction effect
+        const randomX = Phaser.Math.Between(-100, 100);
+        const randomY = Phaser.Math.Between(-150, -25);
+        hitbox.body.setVelocity(randomX, randomY);
+        // Removed setDragX since it wasn't working as expected
       }
-      // Fade out the hitbox over 300ms
+      // Fade out the hitbox over 1000ms
       this.scene.tweens.add({
         targets: hitbox,
         alpha: 0,
-        duration: 300,
+        duration: 1000, // Increased from 300ms to 1000ms
         ease: 'Linear',
       });
-      // Find and trigger fall for hitboxes below this one
-      this.triggerFallForHitboxesBelow(hitbox, pipeManager, isGameOver);
       return false; // No damage
     }
     // Not moving upward: trigger damage and stop velocity
@@ -155,78 +273,6 @@ export default class Player {
       (this.sprite.body as Phaser.Physics.Arcade.Body).setVelocityY(0);
       (this.sprite.body as Phaser.Physics.Arcade.Body).setVelocityX(0);
     }
-  }
-
-  // Triggers fall for hitboxes below the one hit
-  public triggerFallForHitboxesBelow(hitHitbox: Phaser.GameObjects.Rectangle, pipeManager: any, isGameOver: boolean) {
-    this.scene.time.delayedCall(50, () => {
-      if (pipeManager.pipes) {
-        pipeManager.pipes.getChildren().forEach((pipe: any) => {
-          const upperPipe = pipe as Phaser.Physics.Arcade.Sprite;
-          if (upperPipe && (upperPipe as any).purpleHitboxes) {
-            const pipeHitboxes = (upperPipe as any).purpleHitboxes as Phaser.GameObjects.Rectangle[];
-            const hitIndex = pipeHitboxes.indexOf(hitHitbox);
-            if (hitIndex !== -1) {
-              const hitRow = Math.floor(hitIndex / 5);
-              const hitCol = hitIndex % 5;
-              pipeHitboxes.forEach((hitbox, index) => {
-                const row = Math.floor(index / 5);
-                const col = index % 5;
-                if (col === hitCol && row > hitRow) {
-                  if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
-                    hitbox.body.setGravityY(400);
-                  }
-                  this.scene.tweens.add({
-                    targets: hitbox,
-                    alpha: 0,
-                    duration: 500,
-                    ease: 'Linear',
-                  });
-                }
-              });
-              // Trigger fall for the blue hitbox associated with this pipe only if the last column (col 0) is hit
-              if (hitCol === 0 && upperPipe && (upperPipe as any).blueHitbox) {
-                const blueHitbox = (upperPipe as any).blueHitbox;
-                if (blueHitbox.body && blueHitbox.body instanceof Phaser.Physics.Arcade.Body) {
-                  blueHitbox.body.setGravityY(400);
-                  this.scene.tweens.add({
-                    targets: blueHitbox,
-                    alpha: 0,
-                    duration: 500,
-                    ease: 'Linear',
-                  });
-                  if (!isGameOver) {
-                    this.scene.tweens.add({
-                      targets: blueHitbox,
-                      angle: -45,
-                      duration: 500,
-                      ease: 'Linear',
-                    });
-                  }
-                }
-                if (upperPipe && (upperPipe as any).blueRect) {
-                  const blueRect = (upperPipe as any).blueRect;
-                  this.scene.tweens.add({
-                    targets: blueRect,
-                    alpha: 0,
-                    duration: 500,
-                    ease: 'Linear',
-                  });
-                  if (!isGameOver) {
-                    this.scene.tweens.add({
-                      targets: blueRect,
-                      angle: -45,
-                      duration: 500,
-                      ease: 'Linear',
-                    });
-                  }
-                }
-              }
-            }
-          }
-        });
-      }
-    });
   }
 
   // Add public invincibility API
@@ -271,15 +317,30 @@ export default class Player {
 
   // Call this from PlayScene's update loop
   public updateAttackHitboxPosition() {
-    if (this.attackHitbox && this.sprite.body) {
-      const body = this.sprite.body as Phaser.Physics.Arcade.Body;
-      const hitboxWidth = body.width;
-      const hitboxHeight = body.height;
-      const attackWidth = 40; // Doubled from 20
-      const attackHeight = hitboxHeight * 4 / 3;
-      const attackX = this.sprite.x + body.offset.x + hitboxWidth + 20 +30;
-      const attackY = this.sprite.y + body.offset.y - (attackHeight - hitboxHeight) / 2;
+    if (this.attackHitbox && this.sprite) {
+      const attackX = this.sprite.x + Player.ATTACK_OFFSET_X;
+      const attackY = this.sprite.y + this.sprite.height / 2 + Player.ATTACK_OFFSET_Y;
       this.attackHitbox.setPosition(attackX, attackY);
     }
   }
+
+  // Sync upper hitbox to follow the sprite's upper half
+  public syncUpperHitbox(): void {
+    if (this.upperHitbox && this.sprite.body) {
+      const spriteBody = this.sprite.body as Phaser.Physics.Arcade.Body;
+      const spriteWidth = spriteBody.width;
+      const spriteOffsetX = spriteBody.offset.x;
+      const spriteOffsetY = spriteBody.offset.y;
+      
+      // Calculate the exact position relative to the sprite's world position
+      const worldX = this.sprite.x + spriteOffsetX + spriteWidth / 2;
+      const worldY = this.sprite.y + spriteOffsetY - spriteBody.height / 2;
+      
+      // Set position directly without any additional calculations
+      this.upperHitbox.setPosition(worldX, worldY);
+    }
+  }
+
+  // Remove preUpdate syncing
+  public preUpdate(): void {}
 } 

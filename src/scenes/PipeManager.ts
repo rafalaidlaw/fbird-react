@@ -51,11 +51,12 @@ export default class PipeManager {
       const pipeHitboxes: Phaser.GameObjects.Rectangle[] = [];
       for (let row = 0; row < 24; row++) {
         for (let col = 0; col < numColumns; col++) {
-          const hitbox = this.scene.add.rectangle(0, 0, hitboxWidth, hitboxWidth, 0xff8c00, 1); // orange, fully opaque
+          const hitbox = this.scene.add.rectangle(0, 0, hitboxWidth, hitboxWidth, 0xff8c00, 1) as Phaser.GameObjects.Rectangle & { canDamage?: boolean }; // orange, fully opaque
           hitbox.setOrigin(0, 0);
           this.scene.physics.add.existing(hitbox);
           (hitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
           (hitbox.body as Phaser.Physics.Arcade.Body).setSize(hitboxWidth, hitboxWidth);
+          hitbox.canDamage = true;
           this.purpleHitboxes.add(hitbox);
           pipeHitboxes.push(hitbox);
         }
@@ -165,6 +166,8 @@ export default class PipeManager {
         const exactY = Math.round(pipeY - 288 + (row * hitboxWidth));
         hitbox.setPosition(exactX, exactY);
         hitbox.setAlpha(1);
+        // Always reset canDamage to true when recycling
+        (hitbox as any).canDamage = true;
         if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
           hitbox.body.setGravityY(0);
           hitbox.body.setVelocityY(0);
@@ -233,6 +236,81 @@ export default class PipeManager {
         this.scene.tweens.killTweensOf(pipe.blueRect);
         // Do not reset angle
       }
+    });
+  }
+
+  /**
+   * Makes all purple hitboxes below the given hitbox in the same column fall and fade out.
+   * @param hitHitbox The hit purple hitbox (Phaser.GameObjects.Rectangle)
+   * @param isGameOver Whether the game is over (affects blue box animation)
+   */
+  public triggerFallForHitboxesBelow(hitHitbox: Phaser.GameObjects.Rectangle, isGameOver: boolean) {
+    this.scene.time.delayedCall(50, () => {
+      this.pipes.getChildren().forEach((pipe: any) => {
+        const upperPipe = pipe as Phaser.GameObjects.Container;
+        if (upperPipe && (upperPipe as any).purpleHitboxes) {
+          const pipeHitboxes = (upperPipe as any).purpleHitboxes as Phaser.GameObjects.Rectangle[];
+          const hitIndex = pipeHitboxes.indexOf(hitHitbox);
+          if (hitIndex !== -1) {
+            const numColumns = PipeManager.numColumns;
+            const hitRow = Math.floor(hitIndex / numColumns);
+            const hitCol = hitIndex % numColumns;
+            pipeHitboxes.forEach((hitbox, index) => {
+              const row = Math.floor(index / numColumns);
+              const col = index % numColumns;
+              if (col === hitCol && row > hitRow) {
+                if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
+                  hitbox.body.setGravityY(400);
+                }
+                this.scene.tweens.add({
+                  targets: hitbox,
+                  alpha: 0,
+                  duration: 500,
+                  ease: 'Linear',
+                });
+              }
+            });
+            // Trigger fall for the blue hitbox associated with this pipe only if the last column (col 0) is hit
+            if (hitCol === 0 && upperPipe && (upperPipe as any).blueHitbox) {
+              const blueHitbox = (upperPipe as any).blueHitbox;
+              if (blueHitbox.body && blueHitbox.body instanceof Phaser.Physics.Arcade.Body) {
+                blueHitbox.body.setGravityY(400);
+                this.scene.tweens.add({
+                  targets: blueHitbox,
+                  alpha: 0,
+                  duration: 500,
+                  ease: 'Linear',
+                });
+                if (!isGameOver) {
+                  this.scene.tweens.add({
+                    targets: blueHitbox,
+                    angle: -45,
+                    duration: 500,
+                    ease: 'Linear',
+                  });
+                }
+              }
+              if (upperPipe && (upperPipe as any).blueRect) {
+                const blueRect = (upperPipe as any).blueRect;
+                this.scene.tweens.add({
+                  targets: blueRect,
+                  alpha: 0,
+                  duration: 500,
+                  ease: 'Linear',
+                });
+                if (!isGameOver) {
+                  this.scene.tweens.add({
+                    targets: blueRect,
+                    angle: -45,
+                    duration: 500,
+                    ease: 'Linear',
+                  });
+                }
+              }
+            }
+          }
+        }
+      });
     });
   }
 } 
