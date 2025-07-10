@@ -33,6 +33,9 @@ class BaseScene extends Phaser.Scene {
         .setScale(2)
         .setInteractive()
         .setDepth(10); // Ensure back button is on top of all game objects
+      
+      backButton.setScrollFactor(0); // Fix to camera
+      
       backButton.on("pointerup", () => {
         this.scene.start("MenuScene");
       });

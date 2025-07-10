@@ -60,9 +60,20 @@ class PlayScene extends BaseScene {
     this.isGameOver = false;
     this.currentDifficulty = "easy";
     this.hitStop = new HitStop(this); // Instantiate HitStop
+    
+    // Create background first
+    this.createBG();
+    
     this.player = new Player(this, this.config.startPosition);
     // Register the player physics object for hitstop
     this.hitStop.register(this.player.sprite);
+    
+    // Setup camera to follow the player
+    this.cameras.main.startFollow(this.player.sprite);
+    this.cameras.main.setFollowOffset(-this.config.width / 3, 0); // Position Kilboy about 1/6th from left
+    this.cameras.main.setLerp(0.1, 0.1); // Smooth camera movement
+    this.cameras.main.setDeadzone(75, 40); // Larger dead zone for more movement freedom
+    
     this.pipeManager = new PipeManager(this, this.config, this.difficulties, this.currentDifficulty);
     this.pipeManager.createPipes(PIPES_TO_RENDER);
     this.createColiders();
@@ -84,7 +95,8 @@ class PlayScene extends BaseScene {
     this.pipeManager.recyclePipes(
       () => this.increaseScore(),
       () => this.saveBestScore(),
-      () => this.increaseDifficulty()
+      () => this.increaseDifficulty(),
+      this.player.sprite.x
     );
     this.checkGreenHitboxOverlap();
     this.checkBlueHitboxOverlap();
@@ -162,7 +174,8 @@ class PlayScene extends BaseScene {
   }
 
   private createBG(): void {
-    this.add.image(0, 0, "sky-bg").setOrigin(0);
+    const bg = this.add.image(0, 0, "sky-bg").setOrigin(0);
+    bg.setScrollFactor(0); // This makes the background fixed to the camera
   }
 
   private createColiders(): void {
@@ -241,6 +254,8 @@ class PlayScene extends BaseScene {
       .setInteractive()
       .setScale(2.8)
       .setDepth(10); // Ensure pause button is on top of all game objects
+    
+    pauseButton.setScrollFactor(0); // Fix to camera
 
     pauseButton.on("pointerdown", () => {
       this.isPaused = true;

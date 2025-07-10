@@ -21,6 +21,7 @@ export default class UIManager {
       stroke: '#000',
       strokeThickness: 4
     }).setOrigin(1, 0); // Right align
+    this.scoreText.setScrollFactor(0); // Fix to camera
     // Best score display is hidden
   }
 
@@ -35,6 +36,7 @@ export default class UIManager {
     this.jumpRectangles = [];
     for (let i = 0; i < 3; i++) {
       const rect = this.scene.add.rectangle(16, 120 + (i * 25), 20, 20, 0xffff00, 0.2);
+      rect.setScrollFactor(0); // Fix to camera
       this.jumpRectangles.push(rect);
     }
   }
@@ -73,6 +75,7 @@ export default class UIManager {
     const iconY = 32;
     for (let i = 0; i < maxHealth; i++) {
       const icon = this.scene.add.image(16 + i * iconSpacing, iconY, 'health-face').setOrigin(0, 0).setScale(1.2);
+      icon.setScrollFactor(0); // Fix to camera
       this.healthIcons.push(icon);
     }
   }

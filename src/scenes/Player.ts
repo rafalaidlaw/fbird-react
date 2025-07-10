@@ -315,9 +315,29 @@ export default class Player {
 
   // Handles collision with a purple hitbox
   public handlePurpleHitboxCollision(purpleHitbox: Phaser.GameObjects.GameObject, pipeManager: any, isGameOver: boolean): boolean {
-    // Prevent damage while dashing
+    // During dash: trigger purple boxes but don't take damage
     if (this.isDashing) {
-      return false;
+      // Trigger fall for hitboxes below
+      pipeManager.triggerFallForHitboxesBelow(purpleHitbox as Phaser.GameObjects.Rectangle, isGameOver);
+      
+      // Apply destruction effect to the hit purple box
+      const hitbox = purpleHitbox as Phaser.GameObjects.Rectangle;
+      if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
+        hitbox.body.setAllowGravity(true);
+        hitbox.body.setGravityY(800);
+        const randomX = Phaser.Math.Between(-100, 100);
+        const randomY = Phaser.Math.Between(-150, -25);
+        hitbox.body.setVelocity(randomX, randomY);
+      }
+      // Fade out the hitbox
+      this.scene.tweens.add({
+        targets: hitbox,
+        alpha: 0,
+        duration: 1000,
+        ease: 'Linear',
+      });
+      
+      return false; // No damage during dash
     }
     
     const anim = this.sprite.anims;

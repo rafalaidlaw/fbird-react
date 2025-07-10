@@ -119,8 +119,8 @@ export default class PipeManager {
   placePipe(upPipe: any, lowPipe: any) {
     const numColumns = PipeManager.numColumns;
     const hitboxWidth = PipeManager.hitboxWidth;
-    const difficulty = this.difficulties[this.currentDifficulty];
     const rightMostX = this.getRightMostPipe();
+    const difficulty = this.difficulties[this.currentDifficulty];
     const pipeVerticalDistance = Phaser.Math.Between(
       difficulty.pipeVerticalDistanceRange[0],
       difficulty.pipeVerticalDistanceRange[1]
@@ -133,6 +133,7 @@ export default class PipeManager {
       difficulty.pipeHorizontalDistanceRange[0],
       difficulty.pipeHorizontalDistanceRange[1]
     );
+    
     upPipe.x = Math.round(rightMostX + pipeHorizontalDistance);
     upPipe.y = Math.round(pipeVerticalPosition);
     lowPipe.x = Math.round(upPipe.x);
@@ -216,11 +217,13 @@ export default class PipeManager {
     return rightMostX;
   }
 
-  recyclePipes(scoreCallback: () => void, saveBestScoreCallback: () => void, increaseDifficultyCallback: () => void) {
+  recyclePipes(scoreCallback: () => void, saveBestScoreCallback: () => void, increaseDifficultyCallback: () => void, kilboyX?: number) {
     const tempPipes: Phaser.Physics.Arcade.Sprite[] = [];
+    const recycleThreshold = kilboyX ? kilboyX - 200 : -1; // Recycle when pipe is 200px behind Kilboy
+    
     this.pipes.getChildren().forEach((pipe: any) => {
       const sprite = pipe as Phaser.Physics.Arcade.Sprite;
-      if (sprite.getBounds().right <= -1) {
+      if (sprite.getBounds().right <= recycleThreshold) {
         tempPipes.push(sprite);
         if (tempPipes.length === 2) {
           this.placePipe(tempPipes[0], tempPipes[1]);
