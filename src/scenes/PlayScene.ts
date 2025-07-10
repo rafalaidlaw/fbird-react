@@ -2,6 +2,7 @@ import BaseScene from "./BaseScene";
 import UIManager from "./UIManager";
 import Player from "./Player";
 import PipeManager from "./PipeManager";
+import HitStop from "../HitStop";
 
 const PIPES_TO_RENDER = 4;
 
@@ -48,6 +49,7 @@ class PlayScene extends BaseScene {
   private countDownText?: Phaser.GameObjects.Text;
   private timedEvent?: Phaser.Time.TimerEvent;
   private uiManager!: UIManager;
+  public hitStop!: HitStop;
 
   constructor(config: any) {
     super("PlayScene", { ...config, canGoBack: true });
@@ -57,7 +59,10 @@ class PlayScene extends BaseScene {
     super.create();
     this.isGameOver = false;
     this.currentDifficulty = "easy";
+    this.hitStop = new HitStop(this); // Instantiate HitStop
     this.player = new Player(this, this.config.startPosition);
+    // Register the player physics object for hitstop
+    this.hitStop.register(this.player.sprite);
     this.pipeManager = new PipeManager(this, this.config, this.difficulties, this.currentDifficulty);
     this.pipeManager.createPipes(PIPES_TO_RENDER);
     this.createColiders();
@@ -106,8 +111,6 @@ class PlayScene extends BaseScene {
         this.updateJumpRectangles();
       }
     }
-    this.preventHorizontalPushback();
-    this.checkPlayerBoundary();
     // Sync blueBottomHitbox to follow blueHitbox every frame
     this.pipeManager.blueHitboxes.getChildren().forEach((blueHitbox: any) => {
       if (blueHitbox.blueBottomHitbox) {
@@ -213,10 +216,14 @@ class PlayScene extends BaseScene {
         this.time.delayedCall(45, () => {
           this.player.canFlap = true;
         });
-        // Destroy attack hitbox if it exists
+        // Destroy attack hitboxes if they exist
         if (this.player["attackHitbox"]) {
           this.player["attackHitbox"].destroy();
           this.player["attackHitbox"] = undefined;
+        }
+        if (this.player["attackCompletionHitbox"]) {
+          this.player["attackCompletionHitbox"].destroy();
+          this.player["attackCompletionHitbox"] = undefined;
         }
       }
     }
@@ -272,26 +279,6 @@ class PlayScene extends BaseScene {
         ) {
           this.player.sprite.body.setVelocityY(0);
         }
-      }
-    }
-  }
-
-  private preventHorizontalPushback(): void {
-    if (this.player && this.player.sprite) {
-      const currentX = this.player.sprite.x;
-      if (this.player.sprite.body && this.player.sprite.body instanceof Phaser.Physics.Arcade.Body) {
-        this.player.sprite.body.setVelocityX(0);
-      }
-      this.player.sprite.x = currentX;
-    }
-  }
-
-  private checkPlayerBoundary(): void {
-    if (this.player && this.player.sprite.body && this.player.sprite.body instanceof Phaser.Physics.Arcade.Body) {
-      if (this.player.sprite.x < 40) {
-        this.player.sprite.body.setVelocityX(200);
-      } else {
-        this.player.sprite.body.setVelocityX(0);
       }
     }
   }
@@ -373,10 +360,14 @@ class PlayScene extends BaseScene {
         this.time.delayedCall(45, () => {
           this.player.canFlap = true;
         });
-        // Destroy attack hitbox if it exists
+        // Destroy attack hitboxes if they exist
         if (this.player["attackHitbox"]) {
           this.player["attackHitbox"].destroy();
           this.player["attackHitbox"] = undefined;
+        }
+        if (this.player["attackCompletionHitbox"]) {
+          this.player["attackCompletionHitbox"].destroy();
+          this.player["attackCompletionHitbox"] = undefined;
         }
       }
       this.isTouchingBlueHitbox = true;
@@ -389,9 +380,10 @@ class PlayScene extends BaseScene {
     if (this.isGameOver || this.isPaused || !this.player || this.jumpCount >= 3) {
       return;
     }
-    this.player.flap(this.initialFlapVelocity);
-    this.jumpCount++;
-    this.updateJumpRectangles();
+    if (this.player.flap(this.initialFlapVelocity)) {
+      this.jumpCount++;
+      this.updateJumpRectangles();
+    }
   }
 
   private updateJumpRectangles(): void {

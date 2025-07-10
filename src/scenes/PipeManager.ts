@@ -93,6 +93,13 @@ export default class PipeManager {
       this.placePipe(upperPipeContainer, lowerPipeContainer);
     }
     this.pipes.setVelocityX(-200);
+    // Register all pipes and hitboxes with hitStop if available
+    if ((this.scene as any).hitStop) {
+      this.pipes.getChildren().forEach(pipe => (this.scene as any).hitStop.register(pipe));
+      this.greenHitboxes.getChildren().forEach(hitbox => (this.scene as any).hitStop.register(hitbox));
+      this.blueHitboxes.getChildren().forEach(hitbox => (this.scene as any).hitStop.register(hitbox));
+      this.purpleHitboxes.getChildren().forEach(hitbox => (this.scene as any).hitStop.register(hitbox));
+    }
   }
 
   createRedRectangles() {
