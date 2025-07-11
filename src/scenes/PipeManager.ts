@@ -265,8 +265,9 @@ export default class PipeManager {
    * Makes all purple hitboxes below the given hitbox in the same column fall and fade out.
    * @param hitHitbox The hit purple hitbox (Phaser.GameObjects.Rectangle)
    * @param isGameOver Whether the game is over (affects blue box animation)
+   * @param isDashTriggered Whether this was triggered by dash (affects blue box rotation)
    */
-  public triggerFallForHitboxesBelow(hitHitbox: Phaser.GameObjects.Rectangle, isGameOver: boolean) {
+  public triggerFallForHitboxesBelow(hitHitbox: Phaser.GameObjects.Rectangle, isGameOver: boolean, isDashTriggered: boolean = false) {
     this.scene.time.delayedCall(50, () => {
       this.pipes.getChildren().forEach((pipe: any) => {
         const upperPipe = pipe as Phaser.GameObjects.Container;
@@ -303,7 +304,7 @@ export default class PipeManager {
                   duration: 500,
                   ease: 'Linear',
                 });
-                if (!isGameOver) {
+                if (!isGameOver && !isDashTriggered) {
                   this.scene.tweens.add({
                     targets: blueHitbox,
                     angle: -45,
@@ -320,7 +321,7 @@ export default class PipeManager {
                   duration: 500,
                   ease: 'Linear',
                 });
-                if (!isGameOver) {
+                if (!isGameOver && !isDashTriggered) {
                   this.scene.tweens.add({
                     targets: blueRect,
                     angle: -45,

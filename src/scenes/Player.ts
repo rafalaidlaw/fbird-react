@@ -8,10 +8,10 @@ export default class Player {
   private invincibleFlashTimer?: Phaser.Time.TimerEvent;
   private health: number = 4;
   private invincibleTimeout?: Phaser.Time.TimerEvent;
+  private hitStopCheck?: Phaser.GameObjects.Arc;
+  private hitStopCheckTimer?: Phaser.Time.TimerEvent;
   private attackHitbox?: Phaser.GameObjects.Arc;
-  private attackHitboxTimer?: Phaser.Time.TimerEvent;
-  private attackCompletionHitbox?: Phaser.GameObjects.Arc;
-  private attackCompletionTimer?: Phaser.Time.TimerEvent;
+  private lookAheadHitbox?: Phaser.GameObjects.Rectangle;
   public canFlap: boolean = true;
   // Add separate hitboxes for upper and lower body
   public upperHitbox?: Phaser.GameObjects.Rectangle;
@@ -31,6 +31,7 @@ export default class Player {
   private lastPurpleCubeHitTime: number = 0;
   private isHoldingSwingFrame: boolean = false;
   private swingFrameCheckTimer?: Phaser.Time.TimerEvent;
+  private cubesDetectedAhead: boolean = false;
 
   constructor(scene: Phaser.Scene, startPosition: { x: number, y: number }) {
     this.scene = scene;
@@ -38,19 +39,21 @@ export default class Player {
       .sprite(startPosition.x, startPosition.y, "kilboy")
       .setOrigin(0)
       .setDepth(1);
-    // Create swing animation (non-looping, holds on last frame)
-    this.scene.anims.create({
-      key: "kilboy_swing_anim",
-      frames: [
-        { key: "kilboy_swing_anim1" },
-        { key: "kilboy_swing_anim2" },
-        { key: "kilboy_swing_anim3" },
-      ],
-      frameRate: 12,
-      repeat: 0,
-      showOnStart: true,
-      hideOnComplete: false,
-    });
+    // Create swing animation (non-looping, holds on last frame) - only if it doesn't exist
+    if (!this.scene.anims.exists("kilboy_swing_anim")) {
+      this.scene.anims.create({
+        key: "kilboy_swing_anim",
+        frames: [
+          { key: "kilboy_swing_anim1" },
+          { key: "kilboy_swing_anim2" },
+          { key: "kilboy_swing_anim3" },
+        ],
+        frameRate: 12,
+        repeat: 0,
+        showOnStart: true,
+        hideOnComplete: false,
+      });
+    }
     
     // Listen for the animation frame event to trigger hitstop
     // this.sprite.on('animationupdate', (anim: Phaser.Animations.Animation, frame: Phaser.Animations.AnimationFrame) => {
@@ -104,12 +107,32 @@ export default class Player {
       this.hitstopCooldownActive = false;
     }
     
-    // Clean up any existing swing frame holding state
+    // Clean up any existing swing frame holding state ONLY if no cubes detected ahead
     if (this.isHoldingSwingFrame) {
+      // Use manual detection to check if cubes are ahead
+      const cubesAhead = this.detectCubesAhead();
+      if (cubesAhead) {
+        console.log('[FLAP] Preventing swing cleanup - cubes detected ahead via manual detection');
+        return false; // Don't allow new flap while cutting through pillar
+      }
+      console.log('[FLAP] Cleaning up previous swing frame hold');
       this.isHoldingSwingFrame = false;
       if (this.swingFrameCheckTimer) {
         this.swingFrameCheckTimer.remove();
         this.swingFrameCheckTimer = undefined;
+      }
+      // Clean up extended attackHitbox from previous swing hold
+      if (this.attackHitbox) {
+        if ((this.scene as any).hitStop) {
+          (this.scene as any).hitStop.unregister(this.attackHitbox);
+        }
+        this.attackHitbox.destroy();
+        this.attackHitbox = undefined;
+      }
+      // Clean up look-ahead hitbox from previous swing hold
+      if (this.lookAheadHitbox) {
+        this.lookAheadHitbox.destroy();
+        this.lookAheadHitbox = undefined;
       }
     }
     if (this.sprite.body) {
@@ -127,17 +150,17 @@ export default class Player {
     }
     this.animationUpdateHandler = (anim: Phaser.Animations.Animation, frame: Phaser.Animations.AnimationFrame) => {
       if (anim.key === 'kilboy_swing_anim' && frame.index > 1) {
-        // After the first frame, destroy the first hitbox if it exists
-        if (this.attackHitbox) {
+        // After the first frame, destroy the hitStopCheck hitbox if it exists
+        if (this.hitStopCheck) {
           if ((this.scene as any).hitStop) {
-            (this.scene as any).hitStop.unregister(this.attackHitbox);
+            (this.scene as any).hitStop.unregister(this.hitStopCheck);
           }
-          this.attackHitbox.destroy();
-          this.attackHitbox = undefined;
+          this.hitStopCheck.destroy();
+          this.hitStopCheck = undefined;
         }
-        // If hitstop was NOT triggered, create the second hitbox immediately
+        // If hitstop was NOT triggered, create the attack hitbox immediately
         if (!this.hitstopTriggeredThisSwing) {
-          this.createAttackCompletionHitbox();
+          this.createAttackHitbox();
         }
         // Remove this handler for future swings
         this.sprite.off('animationupdate', this.animationUpdateHandler as any);
@@ -147,34 +170,40 @@ export default class Player {
     // Add animation complete handler to hold on last frame
     const animationCompleteHandler = (anim: Phaser.Animations.Animation) => {
       if (anim.key === 'kilboy_swing_anim') {
-        // Only trigger holding if we completed on the final frame (index 2)
-        if (this.sprite.anims.currentFrame && this.sprite.anims.currentFrame.index === 2) {
-          const timeSinceLastHit = this.scene.time.now - this.lastPurpleCubeHitTime;
-          if (timeSinceLastHit <= 200) {
-            // Recently hit a purple cube, hold on last frame
-            console.log('[SWING HOLD] Starting swing frame hold');
-            this.isHoldingSwingFrame = true;
-            // Stop the animation system completely
-            this.sprite.anims.stop();
-            // Explicitly set to the last texture of the swing animation
-            this.sprite.setTexture('kilboy_swing_anim3');
-            
-            // Start periodic check to see when to exit
-            if (this.swingFrameCheckTimer) {
-              this.swingFrameCheckTimer.remove();
-            }
-            this.swingFrameCheckTimer = this.scene.time.addEvent({
-              delay: 5, // Check every 5ms for responsiveness
-              callback: this.checkSwingFrameExit,
-              callbackScope: this,
-              loop: true
-            });
-          } else {
-            // No recent hit, exit normally
-            this.sprite.off('animationcomplete', animationCompleteHandler);
+        console.log('[SWING HOLD] Animation complete triggered');
+        const timeSinceLastHit = this.scene.time.now - this.lastPurpleCubeHitTime;
+        if (timeSinceLastHit <= 200) {
+          // Recently hit a purple cube, hold on last frame regardless of which frame we're on
+          console.log('[SWING HOLD] Starting swing frame hold - recent purple cube hit');
+          this.isHoldingSwingFrame = true;
+          // Stop the animation system completely
+          this.sprite.anims.stop();
+          // Explicitly set to the last texture of the swing animation
+          this.sprite.setTexture('kilboy_swing_anim3');
+          
+          // AttackHitbox will stay active during swing frame holding (no timer to cancel)
+          console.log('[SWING HOLD] AttackHitbox extended during swing frame hold');
+          
+          // Start periodic check to see when to exit
+          if (this.swingFrameCheckTimer) {
+            this.swingFrameCheckTimer.remove();
           }
+          this.swingFrameCheckTimer = this.scene.time.addEvent({
+            delay: 5, // Check every 5ms for responsiveness
+            callback: this.checkSwingFrameExit,
+            callbackScope: this,
+            loop: true
+          });
         } else {
-          // Not on final frame, exit normally
+          // No recent hit, exit normally and clean up attackHitbox
+          console.log('[SWING HOLD] Animation complete - no recent hit, cleaning up');
+          if (this.attackHitbox) {
+            if ((this.scene as any).hitStop) {
+              (this.scene as any).hitStop.unregister(this.attackHitbox);
+            }
+            this.attackHitbox.destroy();
+            this.attackHitbox = undefined;
+          }
           this.sprite.off('animationcomplete', animationCompleteHandler);
         }
       }
@@ -182,13 +211,20 @@ export default class Player {
     this.sprite.on('animationcomplete', animationCompleteHandler);
     this.sprite.on('animationupdate', this.animationUpdateHandler as any);
 
-    // Create attack hitbox to the right of Kilboy
-    this.createAttackHitbox();
+    // Create hitStopCheck hitbox to the right of Kilboy
+    this.createHitStopCheckHitbox();
     return true;
   }
 
-  private createAttackHitbox() {
+  private createHitStopCheckHitbox() {
     // Clean up existing attack hitboxes if they exist
+    if (this.hitStopCheck) {
+      if ((this.scene as any).hitStop) {
+        (this.scene as any).hitStop.unregister(this.hitStopCheck);
+      }
+      this.hitStopCheck.destroy();
+      this.hitStopCheck = undefined;
+    }
     if (this.attackHitbox) {
       if ((this.scene as any).hitStop) {
         (this.scene as any).hitStop.unregister(this.attackHitbox);
@@ -196,44 +232,34 @@ export default class Player {
       this.attackHitbox.destroy();
       this.attackHitbox = undefined;
     }
-    if (this.attackCompletionHitbox) {
-      if ((this.scene as any).hitStop) {
-        (this.scene as any).hitStop.unregister(this.attackCompletionHitbox);
-      }
-      this.attackCompletionHitbox.destroy();
-      this.attackCompletionHitbox = undefined;
+    if (this.hitStopCheckTimer) {
+      this.hitStopCheckTimer.remove();
+      this.hitStopCheckTimer = undefined;
     }
-    if (this.attackHitboxTimer) {
-      this.attackHitboxTimer.remove();
-      this.attackHitboxTimer = undefined;
-    }
-    if (this.attackCompletionTimer) {
-      this.attackCompletionTimer.remove();
-      this.attackCompletionTimer = undefined;
-    }
+
     
     // Use fixed values for attack hitbox size and position
-    // First hitbox: move 5px left and 3px up
+    // HitStopCheck hitbox: move 5px left and 3px up
     const attackX = this.sprite.x + Player.ATTACK_OFFSET_X - 5;
     const attackY = this.sprite.y + this.sprite.height / 2 + Player.ATTACK_OFFSET_Y - 3;
     
-    // Create first hitbox for collision detection (20% smaller)
-    const firstHitboxRadius = Player.ATTACK_RADIUS * 0.6;
-    this.attackHitbox = this.scene.add.circle(attackX, attackY, firstHitboxRadius, 0xff0000, 0.3);
-    this.scene.physics.add.existing(this.attackHitbox);
-    (this.attackHitbox.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
-    (this.attackHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
-    (this.attackHitbox.body as Phaser.Physics.Arcade.Body).setCircle(firstHitboxRadius);
-    this.attackHitbox.setAlpha(0);
+    // Create hitStopCheck hitbox for collision detection (20% smaller)
+    const hitStopCheckRadius = Player.ATTACK_RADIUS * 0.6;
+    this.hitStopCheck = this.scene.add.circle(attackX, attackY, hitStopCheckRadius, 0xff0000, 0.3);
+    this.scene.physics.add.existing(this.hitStopCheck);
+    (this.hitStopCheck.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
+    (this.hitStopCheck.body as Phaser.Physics.Arcade.Body).setImmovable(true);
+    (this.hitStopCheck.body as Phaser.Physics.Arcade.Body).setCircle(hitStopCheckRadius);
+    this.hitStopCheck.setAlpha(0);
     
-    // Register first hitbox with hitStop
+    // Register hitStopCheck hitbox with hitStop
     if ((this.scene as any).hitStop) {
-      (this.scene as any).hitStop.register(this.attackHitbox);
+      (this.scene as any).hitStop.register(this.hitStopCheck);
     }
     
-    // Set up overlap with purple cubes for the first hitbox
+    // Set up overlap with purple cubes for the hitStopCheck hitbox
     this.scene.physics.add.overlap(
-      this.attackHitbox!,
+      this.hitStopCheck!,
       (this.scene as any).pipeManager?.purpleHitboxes,
       (attack: any, purple: any) => {
         // Only trigger hitstop and dash if the purple cube can still damage
@@ -244,7 +270,7 @@ export default class Player {
         // Update last purple cube hit timestamp
         this.lastPurpleCubeHitTime = this.scene.time.now;
         
-        // On collision, trigger hitstop and destroy the first hitbox immediately
+        // On collision, trigger hitstop and destroy the hitStopCheck hitbox immediately
         if ((this.scene as any).hitStop && !this.hitstopTriggered) {
           this.canFlap = false;
           this.hitstopTriggeredThisSwing = true;
@@ -261,12 +287,12 @@ export default class Player {
             this.startDash();
           });
         }
-        if (this.attackHitbox) {
+        if (this.hitStopCheck) {
           if ((this.scene as any).hitStop) {
-            (this.scene as any).hitStop.unregister(this.attackHitbox);
+            (this.scene as any).hitStop.unregister(this.hitStopCheck);
           }
-          this.attackHitbox.destroy();
-          this.attackHitbox = undefined;
+          this.hitStopCheck.destroy();
+          this.hitStopCheck = undefined;
         }
         // Remove animation update handler so it doesn't create the second hitbox
         if (this.animationUpdateHandler) {
@@ -278,33 +304,34 @@ export default class Player {
     );
   }
 
-  private createAttackCompletionHitbox() {
-    // Clean up existing completion hitbox if it exists
-    if (this.attackCompletionHitbox) {
+  private createAttackHitbox() {
+    // Clean up existing attack hitbox if it exists
+    if (this.attackHitbox) {
       if ((this.scene as any).hitStop) {
-        (this.scene as any).hitStop.unregister(this.attackCompletionHitbox);
+        (this.scene as any).hitStop.unregister(this.attackHitbox);
       }
-      this.attackCompletionHitbox.destroy();
-      this.attackCompletionHitbox = undefined;
+      this.attackHitbox.destroy();
+      this.attackHitbox = undefined;
     }
-    if (this.attackCompletionTimer) {
-      this.attackCompletionTimer.remove();
-      this.attackCompletionTimer = undefined;
+    // Clean up existing look-ahead hitbox if it exists
+    if (this.lookAheadHitbox) {
+      this.lookAheadHitbox.destroy();
+      this.lookAheadHitbox = undefined;
     }
     // Use fixed values for attack hitbox size and position
     const attackX = this.sprite.x + Player.ATTACK_OFFSET_X;
     const attackY = this.sprite.y + this.sprite.height / 2 + Player.ATTACK_OFFSET_Y;
-    // Create second hitbox for attack completion
-    this.attackCompletionHitbox = this.scene.add.circle(attackX, attackY, Player.ATTACK_RADIUS, 0x00ff00, 0.3);
-    this.scene.physics.add.existing(this.attackCompletionHitbox);
-    (this.attackCompletionHitbox.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
-    (this.attackCompletionHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
-    (this.attackCompletionHitbox.body as Phaser.Physics.Arcade.Body).setCircle(Player.ATTACK_RADIUS);
-    this.attackCompletionHitbox.setAlpha(0); // Fully invisible
-    // Do NOT register second hitbox with hitStop
-    // Set up overlap with purple cubes for the second hitbox (push effect, no hitstop)
+    // Create attack hitbox
+    this.attackHitbox = this.scene.add.circle(attackX, attackY, Player.ATTACK_RADIUS, 0x00ff00, 0.3);
+    this.scene.physics.add.existing(this.attackHitbox);
+    (this.attackHitbox.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
+    (this.attackHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
+    (this.attackHitbox.body as Phaser.Physics.Arcade.Body).setCircle(Player.ATTACK_RADIUS);
+    this.attackHitbox.setAlpha(0); // Fully invisible
+    // Do NOT register attack hitbox with hitStop
+    // Set up overlap with purple cubes for the attack hitbox (push effect, no hitstop)
     this.scene.physics.add.overlap(
-      this.attackCompletionHitbox!,
+      this.attackHitbox!,
       (this.scene as any).pipeManager?.purpleHitboxes,
       (attack: any, purple: any) => {
         // Simulate Kilboy's upward hit on purple cube (push effect)
@@ -324,21 +351,44 @@ export default class Player {
           duration: PipeManager.PURPLE_CUBE_FADE_DURATION,
           ease: 'Linear',
         });
-        (this.scene as any).pipeManager.triggerFallForHitboxesBelow(purple, false);
+        (this.scene as any).pipeManager.triggerFallForHitboxesBelow(purple, false, false);
       },
       undefined,
       this
     );
-    // Timer for the second hitbox (attack completion) - short duration
-    this.attackCompletionTimer = this.scene.time.delayedCall(300, () => {
-      if (this.attackCompletionHitbox) {
-        if ((this.scene as any).hitStop) {
-          (this.scene as any).hitStop.unregister(this.attackCompletionHitbox);
-        }
-        this.attackCompletionHitbox.destroy();
-        this.attackCompletionHitbox = undefined;
-      }
-    });
+    
+    // Create look-ahead hitbox to detect purple cubes ahead during swing frame holding
+    this.createLookAheadHitbox();
+    
+    // AttackHitbox will be destroyed when swing animation ends, no timer needed
+  }
+
+  private createLookAheadHitbox() {
+    // Create a rectangular hitbox that extends forward from Kilboy to detect purple cubes ahead
+    const lookAheadWidth = 120; // How far ahead to detect
+    const lookAheadHeight = this.sprite.height + 20; // Slightly taller than Kilboy
+    const lookAheadX = this.sprite.x + this.sprite.width; // Start from Kilboy's right edge
+    const lookAheadY = this.sprite.y + (this.sprite.height / 2) - (lookAheadHeight / 2); // Center vertically
+    
+    this.lookAheadHitbox = this.scene.add.rectangle(lookAheadX, lookAheadY, lookAheadWidth, lookAheadHeight, 0xffff00, 0.2);
+    this.lookAheadHitbox.setOrigin(0, 0);
+    this.scene.physics.add.existing(this.lookAheadHitbox);
+    (this.lookAheadHitbox.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
+    (this.lookAheadHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
+    this.lookAheadHitbox.setAlpha(0); // Invisible in production
+    
+    // Set up overlap detection with purple cubes
+    this.scene.physics.add.overlap(
+      this.lookAheadHitbox!,
+      (this.scene as any).pipeManager?.purpleHitboxes,
+      () => {
+        // Cube detected ahead
+        this.cubesDetectedAhead = true;
+        console.log('[LOOK-AHEAD] Purple cube detected ahead');
+      },
+      undefined,
+      this
+    );
   }
 
   setInvincible(invincible: boolean) {
@@ -385,16 +435,21 @@ export default class Player {
 
   // Handles collision with a purple hitbox
   public handlePurpleHitboxCollision(purpleHitbox: Phaser.GameObjects.GameObject, pipeManager: any, isGameOver: boolean): boolean {
-    // Check canDamage first before any other processing
+    // Always trigger fall for hitboxes below on any purple cube contact (including dash)
+    // This must happen BEFORE canDamage check so dash collisions still trigger column collapse
+    pipeManager.triggerFallForHitboxesBelow(purpleHitbox as Phaser.GameObjects.Rectangle, isGameOver, this.isDashing);
+    if (this.isDashing) {
+      console.log('[DASH] Column collapse triggered for dash collision - blue cubes will not rotate');
+    }
+    
+    // Check canDamage after column collapse to allow dash to trigger columns
     if ((purpleHitbox as any).canDamage === false) return false;
     // Check global hitstop cooldown
     if (this.hitstopCooldownActive) return false;
     
-    // Always trigger fall for hitboxes below on any purple cube contact
-    pipeManager.triggerFallForHitboxesBelow(purpleHitbox as Phaser.GameObjects.Rectangle, isGameOver);
-    
     // During dash: trigger purple boxes but don't take damage
     if (this.isDashing) {
+      console.log('[DASH] Dash collision with purple cube - column collapse already triggered above');
       
       // Apply destruction effect to the hit purple box
       const hitbox = purpleHitbox as Phaser.GameObjects.Rectangle;
@@ -535,15 +590,20 @@ export default class Player {
 
   // Call this from PlayScene's update loop
   public updateAttackHitboxPosition() {
+    if (this.hitStopCheck && this.sprite) {
+      const attackX = this.sprite.x + Player.ATTACK_OFFSET_X;
+      const attackY = this.sprite.y + this.sprite.height / 2 + Player.ATTACK_OFFSET_Y;
+      this.hitStopCheck.setPosition(attackX, attackY);
+    }
     if (this.attackHitbox && this.sprite) {
       const attackX = this.sprite.x + Player.ATTACK_OFFSET_X;
       const attackY = this.sprite.y + this.sprite.height / 2 + Player.ATTACK_OFFSET_Y;
       this.attackHitbox.setPosition(attackX, attackY);
     }
-    if (this.attackCompletionHitbox && this.sprite) {
-      const attackX = this.sprite.x + Player.ATTACK_OFFSET_X;
-      const attackY = this.sprite.y + this.sprite.height / 2 + Player.ATTACK_OFFSET_Y;
-      this.attackCompletionHitbox.setPosition(attackX, attackY);
+    if (this.lookAheadHitbox && this.sprite) {
+      const lookAheadX = this.sprite.x + this.sprite.width;
+      const lookAheadY = this.sprite.y + (this.sprite.height / 2) - (this.lookAheadHitbox.height / 2);
+      this.lookAheadHitbox.setPosition(lookAheadX, lookAheadY);
     }
   }
 
@@ -581,20 +641,76 @@ export default class Player {
     // While holding swing pose, actively cut through purple cubes
     this.cutThroughPurpleCubes();
     
-    if (timeSinceLastHit > 200) {
-      // More than 200ms since last hit, exit swing state
-      console.log('[SWING HOLD] Ending swing frame hold');
+    // Check if there are purple cubes ahead using manual detection
+    this.cubesDetectedAhead = this.detectCubesAhead();
+    
+    // Only exit if both conditions are met:
+    // 1. It's been more than the timeout since last hit (longer if cubes ahead)
+    // 2. There are no purple cubes ahead in Kilboy's path
+    const timeout = this.cubesDetectedAhead ? 500 : 200; // Longer timeout when cubes detected ahead
+    
+    if (timeSinceLastHit > timeout && !this.cubesDetectedAhead) {
+      // No recent hit and no cubes ahead, exit swing state
+      console.log('[SWING HOLD] Ending swing frame hold - no recent hits and no cubes ahead');
       this.isHoldingSwingFrame = false;
       this.sprite.anims.stop();
       // Reset to default texture
       this.sprite.setTexture('kilboy');
+      
+      // Clean up extended attackHitbox
+      if (this.attackHitbox) {
+        if ((this.scene as any).hitStop) {
+          (this.scene as any).hitStop.unregister(this.attackHitbox);
+        }
+        this.attackHitbox.destroy();
+        this.attackHitbox = undefined;
+        console.log('[SWING HOLD] Cleaned up extended attackHitbox');
+      }
+      
+      // Clean up look-ahead hitbox
+      if (this.lookAheadHitbox) {
+        this.lookAheadHitbox.destroy();
+        this.lookAheadHitbox = undefined;
+        console.log('[SWING HOLD] Cleaned up look-ahead hitbox');
+      }
       
       // Clean up timer
       if (this.swingFrameCheckTimer) {
         this.swingFrameCheckTimer.remove();
         this.swingFrameCheckTimer = undefined;
       }
+    } else if (this.cubesDetectedAhead && timeSinceLastHit > 200) {
+      console.log('[SWING HOLD] Continuing swing - purple cubes detected ahead');
     }
+  }
+  
+  // Manually detect if there are purple cubes ahead of Kilboy
+  private detectCubesAhead(): boolean {
+    const pipeManager = (this.scene as any).pipeManager;
+    if (!pipeManager || !pipeManager.purpleHitboxes) return false;
+
+    // Define look-ahead area
+    const lookAheadWidth = 120;
+    const lookAheadHeight = this.sprite.height + 20;
+    const lookAheadX = this.sprite.x + this.sprite.width;
+    const lookAheadY = this.sprite.y + (this.sprite.height / 2) - (lookAheadHeight / 2);
+    
+    const lookAheadBounds = new Phaser.Geom.Rectangle(lookAheadX, lookAheadY, lookAheadWidth, lookAheadHeight);
+    
+    // Check if any purple cubes are in the look-ahead area
+    let cubesFound = false;
+    pipeManager.purpleHitboxes.getChildren().forEach((purpleHitbox: any) => {
+      if (!purpleHitbox.active || (purpleHitbox as any).canDamage === false) return;
+      
+      const purpleBounds = purpleHitbox.getBounds();
+      
+      if (Phaser.Geom.Rectangle.Overlaps(lookAheadBounds, purpleBounds)) {
+        cubesFound = true;
+        console.log('[LOOK-AHEAD] Manual detection found purple cube ahead');
+      }
+    });
+    
+    return cubesFound;
   }
 
   // Actively cut through purple cubes while holding swing pose
@@ -633,10 +749,12 @@ export default class Player {
         });
         
         // Trigger column collapse
-        pipeManager.triggerFallForHitboxesBelow(purpleHitbox, false);
+        pipeManager.triggerFallForHitboxesBelow(purpleHitbox, false, false);
       }
     });
   }
+
+
 
   // Dash state: disables jump, sets x velocity to +50, tweens back to 0 over 100ms, then re-enables jump
   private startDash() {

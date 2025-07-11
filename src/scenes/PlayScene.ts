@@ -124,10 +124,15 @@ class PlayScene extends BaseScene {
     if (this.player && this.player.sprite.body && this.player.sprite.body.velocity.y > 0) {
       if (!this.player.isInvincible && !this.player.isHoldingSwingFrameActive) {
         this.player.sprite.setTexture("kilboy");
+      } else if (this.player.isHoldingSwingFrameActive) {
+        // Debug: PlayScene tried to override but swing frame is active
+        console.log('[PLAYSCE] Preserving swing texture - isHoldingSwingFrameActive:', this.player.isHoldingSwingFrameActive);
       }
-      if (!this.isGameOver) {
+      if (!this.isGameOver && !this.player.isHoldingSwingFrameActive) {
         this.jumpCount = 0;
         this.updateJumpRectangles();
+      } else if (this.player.isHoldingSwingFrameActive) {
+        console.log('[PLAYSCE] Preventing jumpCount reset during swing frame hold');
       }
     }
     // Sync blueBottomHitbox to follow blueHitbox every frame
@@ -237,13 +242,13 @@ class PlayScene extends BaseScene {
           this.player.canFlap = true;
         });
         // Destroy attack hitboxes if they exist
+        if (this.player["hitStopCheck"]) {
+          this.player["hitStopCheck"].destroy();
+          this.player["hitStopCheck"] = undefined;
+        }
         if (this.player["attackHitbox"]) {
           this.player["attackHitbox"].destroy();
           this.player["attackHitbox"] = undefined;
-        }
-        if (this.player["attackCompletionHitbox"]) {
-          this.player["attackCompletionHitbox"].destroy();
-          this.player["attackCompletionHitbox"] = undefined;
         }
       }
     }
@@ -345,7 +350,12 @@ class PlayScene extends BaseScene {
     if (isOverlapping) {
       (this.player.sprite.body as Phaser.Physics.Arcade.Body).setGravityY(0);
       (this.player.sprite.body as Phaser.Physics.Arcade.Body).setVelocityY(0);
-      this.player.sprite.setTexture("kilboy_run");
+      // Only set texture if not holding swing frame
+      if (!this.player.isHoldingSwingFrameActive) {
+        this.player.sprite.setTexture("kilboy_run");
+      } else {
+        console.log('[PLAYSCE] Green hitbox contact - preserving swing texture during frame hold');
+      }
       // Set Kilboy's y position to a constant offset above the green box
       if (firstOverlappingGreen) {
         this.player.sprite.y = firstOverlappingGreen.y - 48; // Tweak this offset as needed
@@ -372,13 +382,13 @@ class PlayScene extends BaseScene {
           this.player.canFlap = true;
         });
         // Destroy attack hitboxes if they exist
+        if (this.player["hitStopCheck"]) {
+          this.player["hitStopCheck"].destroy();
+          this.player["hitStopCheck"] = undefined;
+        }
         if (this.player["attackHitbox"]) {
           this.player["attackHitbox"].destroy();
           this.player["attackHitbox"] = undefined;
-        }
-        if (this.player["attackCompletionHitbox"]) {
-          this.player["attackCompletionHitbox"].destroy();
-          this.player["attackCompletionHitbox"] = undefined;
         }
       }
       this.isTouchingBlueHitbox = true;
