@@ -11,8 +11,8 @@ export default class PipeManager {
   public purpleHitboxes: Phaser.Physics.Arcade.Group;
 
   // Add these constants for column logic
-  private static readonly numColumns = 5;
-  private static readonly hitboxWidth = 12;
+  private static readonly numColumns = 4;
+  private static readonly hitboxWidth = 16;
   
   // Configurable fade duration for purple cubes (in milliseconds)
   public static readonly PURPLE_CUBE_FADE_DURATION = 1000;
@@ -40,19 +40,22 @@ export default class PipeManager {
       upperOrangeRect.setOrigin(0, 1);
       upperPipeContainer.add(upperOrangeRect);
       // Add blue rectangle as child of the container
-      const blueRect = this.scene.add.rectangle(0, 0, blueWidth, 16, 0x0000ff, 0);
+      const blueRect = this.scene.add.rectangle(0, 0, blueWidth, 32, 0x0000ff, 0);
       blueRect.setOrigin(0, 0);
       upperPipeContainer.add(blueRect);
-      // Create separate hitbox for blue rectangle
-      const blueHitbox = this.scene.add.rectangle(0, 0, blueWidth, 16, 0x00ffff, 0.5);
+      // Create separate hitbox for blue rectangle (positioned at bottom of purple cube column)
+      const purpleColumnHeight = 23 * hitboxWidth; // 23 rows × 16px each = 368px
+      const purpleColumnBottom = -288 + purpleColumnHeight; // -288 + 368 = 80
+      const blueHitbox = this.scene.add.rectangle(0, purpleColumnBottom, blueWidth, 16, 0x00ffff, 1);
       blueHitbox.setOrigin(0, 0);
       this.scene.physics.add.existing(blueHitbox);
       (blueHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
+      (blueHitbox.body as Phaser.Physics.Arcade.Body).pushable = false;
       this.blueHitboxes.add(blueHitbox);
       // Create grid of colored hitboxes for this pipe (numColumns across, 24 up)
       // All cubes orange
       const pipeHitboxes: Phaser.GameObjects.Rectangle[] = [];
-      for (let row = 0; row < 24; row++) {
+      for (let row = 0; row < 23; row++) {
         for (let col = 0; col < numColumns; col++) {
           const hitbox = this.scene.add.rectangle(0, 0, hitboxWidth, hitboxWidth, 0xff8c00, 1) as Phaser.GameObjects.Rectangle & { canDamage?: boolean }; // orange, fully opaque
           hitbox.setOrigin(0, 0);
@@ -156,13 +159,16 @@ export default class PipeManager {
     if (upPipe && (upPipe as any).blueHitbox) {
       const blueHitbox = (upPipe as any).blueHitbox;
       blueHitbox.x = upPipe.x - 2;
-      blueHitbox.y = upPipe.y;
+      // Keep blue hitbox at bottom of purple column (don't reset Y position)
+      const purpleColumnHeight = 23 * hitboxWidth; // 23 rows × 16px each
+      const purpleColumnBottom = -288 + purpleColumnHeight; // Bottom of purple column
+      blueHitbox.y = upPipe.y + purpleColumnBottom;
       if (blueHitbox.body && blueHitbox.body instanceof Phaser.Physics.Arcade.Body) {
         blueHitbox.body.setGravityY(0);
         blueHitbox.body.setVelocityY(0);
         blueHitbox.setAlpha(1);
         this.scene.tweens.killTweensOf(blueHitbox);
-        blueHitbox.body.reset(upPipe.x - 2, upPipe.y);
+        blueHitbox.body.reset(upPipe.x - 2, upPipe.y + purpleColumnBottom);
       }
       blueHitbox.angle = 0; // Reset rotation on recycle
       if (upPipe && (upPipe as any).blueRect) {

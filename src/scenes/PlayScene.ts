@@ -194,13 +194,13 @@ class PlayScene extends BaseScene {
     if (this.player && this.pipeManager.pipes) {
       // Optionally add pipe collision logic here
     }
-    // Upper hitbox collides with blue boxes
+    // Upper hitbox overlaps with blue boxes (sensor-only detection)
     if (this.player && this.player.upperHitbox && this.pipeManager.blueHitboxes) {
-      this.physics.add.collider(
+      this.physics.add.overlap(
         this.player.upperHitbox,
         this.pipeManager.blueHitboxes,
         (obj1: any, obj2: any) => {
-          // Handle blue box collision with upper hitbox
+          // Handle blue box overlap with upper hitbox
           this.handleBlueBoxCollision(obj2);
         },
         undefined,

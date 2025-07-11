@@ -46,18 +46,18 @@ export default class Player {
       .setDepth(1);
     // Create swing animation (non-looping, holds on last frame) - only if it doesn't exist
     if (!this.scene.anims.exists("kilboy_swing_anim")) {
-      this.scene.anims.create({
-        key: "kilboy_swing_anim",
-        frames: [
-          { key: "kilboy_swing_anim1" },
-          { key: "kilboy_swing_anim2" },
-          { key: "kilboy_swing_anim3" },
-        ],
-        frameRate: 12,
-        repeat: 0,
-        showOnStart: true,
-        hideOnComplete: false,
-      });
+    this.scene.anims.create({
+      key: "kilboy_swing_anim",
+      frames: [
+        { key: "kilboy_swing_anim1" },
+        { key: "kilboy_swing_anim2" },
+        { key: "kilboy_swing_anim3" },
+      ],
+      frameRate: 12,
+      repeat: 0,
+      showOnStart: true,
+      hideOnComplete: false,
+    });
     }
     
     // Listen for the animation frame event to trigger hitstop
