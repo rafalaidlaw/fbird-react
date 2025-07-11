@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import PipeManager from "./PipeManager";
 
 export default class Player {
   private scene: Phaser.Scene;
@@ -26,6 +27,10 @@ export default class Player {
   private animationUpdateHandler?: Function;
   private isDashing: boolean = false;
   private dashTween?: Phaser.Tweens.Tween;
+  private hitstopCooldownActive: boolean = false;
+  private lastPurpleCubeHitTime: number = 0;
+  private isHoldingSwingFrame: boolean = false;
+  private swingFrameCheckTimer?: Phaser.Time.TimerEvent;
 
   constructor(scene: Phaser.Scene, startPosition: { x: number, y: number }) {
     this.scene = scene;
@@ -95,6 +100,17 @@ export default class Player {
     // Reset hitstopTriggered if jumpCount is 0
     if ((this.scene as any).jumpCount !== undefined && (this.scene as any).jumpCount === 0) {
       this.hitstopTriggered = false;
+      // Reset hitstop cooldown when starting a new jump sequence
+      this.hitstopCooldownActive = false;
+    }
+    
+    // Clean up any existing swing frame holding state
+    if (this.isHoldingSwingFrame) {
+      this.isHoldingSwingFrame = false;
+      if (this.swingFrameCheckTimer) {
+        this.swingFrameCheckTimer.remove();
+        this.swingFrameCheckTimer = undefined;
+      }
     }
     if (this.sprite.body) {
       (this.sprite.body as Phaser.Physics.Arcade.Body).velocity.y = -initialFlapVelocity;
@@ -127,6 +143,43 @@ export default class Player {
         this.sprite.off('animationupdate', this.animationUpdateHandler as any);
       }
     };
+    
+    // Add animation complete handler to hold on last frame
+    const animationCompleteHandler = (anim: Phaser.Animations.Animation) => {
+      if (anim.key === 'kilboy_swing_anim') {
+        // Only trigger holding if we completed on the final frame (index 2)
+        if (this.sprite.anims.currentFrame && this.sprite.anims.currentFrame.index === 2) {
+          const timeSinceLastHit = this.scene.time.now - this.lastPurpleCubeHitTime;
+          if (timeSinceLastHit <= 200) {
+            // Recently hit a purple cube, hold on last frame
+            console.log('[SWING HOLD] Starting swing frame hold');
+            this.isHoldingSwingFrame = true;
+            // Stop the animation system completely
+            this.sprite.anims.stop();
+            // Explicitly set to the last texture of the swing animation
+            this.sprite.setTexture('kilboy_swing_anim3');
+            
+            // Start periodic check to see when to exit
+            if (this.swingFrameCheckTimer) {
+              this.swingFrameCheckTimer.remove();
+            }
+            this.swingFrameCheckTimer = this.scene.time.addEvent({
+              delay: 5, // Check every 5ms for responsiveness
+              callback: this.checkSwingFrameExit,
+              callbackScope: this,
+              loop: true
+            });
+          } else {
+            // No recent hit, exit normally
+            this.sprite.off('animationcomplete', animationCompleteHandler);
+          }
+        } else {
+          // Not on final frame, exit normally
+          this.sprite.off('animationcomplete', animationCompleteHandler);
+        }
+      }
+    };
+    this.sprite.on('animationcomplete', animationCompleteHandler);
     this.sprite.on('animationupdate', this.animationUpdateHandler as any);
 
     // Create attack hitbox to the right of Kilboy
@@ -165,7 +218,7 @@ export default class Player {
     const attackY = this.sprite.y + this.sprite.height / 2 + Player.ATTACK_OFFSET_Y - 3;
     
     // Create first hitbox for collision detection (20% smaller)
-    const firstHitboxRadius = Player.ATTACK_RADIUS * 0.8;
+    const firstHitboxRadius = Player.ATTACK_RADIUS * 0.6;
     this.attackHitbox = this.scene.add.circle(attackX, attackY, firstHitboxRadius, 0xff0000, 0.3);
     this.scene.physics.add.existing(this.attackHitbox);
     (this.attackHitbox.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
@@ -183,11 +236,26 @@ export default class Player {
       this.attackHitbox!,
       (this.scene as any).pipeManager?.purpleHitboxes,
       (attack: any, purple: any) => {
+        // Only trigger hitstop and dash if the purple cube can still damage
+        if (purple.canDamage === false) return;
+        // Check global hitstop cooldown
+        if (this.hitstopCooldownActive) return;
+        
+        // Update last purple cube hit timestamp
+        this.lastPurpleCubeHitTime = this.scene.time.now;
+        
         // On collision, trigger hitstop and destroy the first hitbox immediately
         if ((this.scene as any).hitStop && !this.hitstopTriggered) {
           this.canFlap = false;
           this.hitstopTriggeredThisSwing = true;
           this.hitstopTriggered = true;
+          // Immediately mark this cube as unable to damage to prevent multiple hitstop triggers
+          purple.canDamage = false;
+          // Activate global hitstop cooldown
+          this.hitstopCooldownActive = true;
+          this.scene.time.delayedCall(1000, () => {
+            this.hitstopCooldownActive = false;
+          });
           (this.scene as any).hitStop.trigger(200, () => {
             // Start Dash after hitstop ends
             this.startDash();
@@ -241,6 +309,8 @@ export default class Player {
       (attack: any, purple: any) => {
         // Simulate Kilboy's upward hit on purple cube (push effect)
         purple.canDamage = false;
+        // Update last purple cube hit timestamp
+        this.lastPurpleCubeHitTime = this.scene.time.now;
         if (purple.body && purple.body instanceof Phaser.Physics.Arcade.Body) {
           purple.body.setAllowGravity(true);
           purple.body.setGravityY(800);
@@ -251,7 +321,7 @@ export default class Player {
         this.scene.tweens.add({
           targets: purple,
           alpha: 0,
-          duration: 1000,
+          duration: PipeManager.PURPLE_CUBE_FADE_DURATION,
           ease: 'Linear',
         });
         (this.scene as any).pipeManager.triggerFallForHitboxesBelow(purple, false);
@@ -315,14 +385,21 @@ export default class Player {
 
   // Handles collision with a purple hitbox
   public handlePurpleHitboxCollision(purpleHitbox: Phaser.GameObjects.GameObject, pipeManager: any, isGameOver: boolean): boolean {
+    // Check canDamage first before any other processing
+    if ((purpleHitbox as any).canDamage === false) return false;
+    // Check global hitstop cooldown
+    if (this.hitstopCooldownActive) return false;
+    
+    // Always trigger fall for hitboxes below on any purple cube contact
+    pipeManager.triggerFallForHitboxesBelow(purpleHitbox as Phaser.GameObjects.Rectangle, isGameOver);
+    
     // During dash: trigger purple boxes but don't take damage
     if (this.isDashing) {
-      // Trigger fall for hitboxes below
-      pipeManager.triggerFallForHitboxesBelow(purpleHitbox as Phaser.GameObjects.Rectangle, isGameOver);
       
       // Apply destruction effect to the hit purple box
       const hitbox = purpleHitbox as Phaser.GameObjects.Rectangle;
       if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
+        hitbox.body.moves = true; // Re-enable individual movement for destruction
         hitbox.body.setAllowGravity(true);
         hitbox.body.setGravityY(800);
         const randomX = Phaser.Math.Between(-100, 100);
@@ -333,7 +410,7 @@ export default class Player {
       this.scene.tweens.add({
         targets: hitbox,
         alpha: 0,
-        duration: 1000,
+        duration: PipeManager.PURPLE_CUBE_FADE_DURATION,
         ease: 'Linear',
       });
       
@@ -341,19 +418,47 @@ export default class Player {
     }
     
     const anim = this.sprite.anims;
-    // Only proceed if animation is playing and on the first frame of kilboy_swing_anim
-    if (
-      !anim.isPlaying ||
-      anim.currentAnim?.key !== "kilboy_swing_anim" ||
-      anim.currentFrame?.index !== 1
-    ) {
-      return false;
-    }
-    if (
-      anim.isPlaying &&
-      anim.currentAnim?.key === "kilboy_swing_anim"
-    ) {
+    // Check if currently in swing animation (any frame) or holding on last frame
+    const isInSwingAnimation = (anim.isPlaying && anim.currentAnim?.key === "kilboy_swing_anim") || this.isHoldingSwingFrame;
+    // Check if currently in attack animation on first frame  
+    const isInAttackAnimationFirstFrame = anim.isPlaying && anim.currentAnim?.key === "kilboy_swing_anim" && anim.currentFrame?.index === 1;
+    
+    // Special case: Attack destruction (first frame + upward movement)
+    if (isInAttackAnimationFirstFrame && this.sprite && this.sprite.body && (this.sprite.body as Phaser.Physics.Arcade.Body).velocity.y < 0) {
+      // Trigger hitstop
       (this.scene as any).hitStop?.trigger(1000);
+      // Immediately mark this cube as unable to damage to prevent multiple hitstop triggers
+      (purpleHitbox as any).canDamage = false;
+      // Activate global hitstop cooldown
+      this.hitstopCooldownActive = true;
+      this.scene.time.delayedCall(1500, () => {
+        this.hitstopCooldownActive = false;
+      });
+      
+      // Apply gravity to the individual purple hitbox (attack destruction)
+      const hitbox = purpleHitbox as Phaser.GameObjects.Rectangle;
+      if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
+        hitbox.body.moves = true; // Re-enable individual movement for destruction
+        hitbox.body.setAllowGravity(true);
+        hitbox.body.setGravityY(800); // Stronger gravity (was 400)
+        // Randomize velocity for more varied destruction effect
+        const randomX = Phaser.Math.Between(-100, 100);
+        const randomY = Phaser.Math.Between(-150, -25);
+        hitbox.body.setVelocity(randomX, randomY);
+      }
+      // Fade out the hitbox
+      this.scene.tweens.add({
+        targets: hitbox,
+        alpha: 0,
+        duration: PipeManager.PURPLE_CUBE_FADE_DURATION,
+        ease: 'Linear',
+      });
+      return false; // No damage during attack destruction
+    }
+    
+    // If swinging (any frame), immune to damage
+    if (isInSwingAnimation) {
+      return false; // No damage during swing animation
     }
     // Prevent hit if Kilboy is below the next blue box
     let nextBlue: any = null;
@@ -370,32 +475,7 @@ export default class Player {
     if (nextBlue && this.sprite.y > nextBlue.y) {
       return false; // Block hit if Kilboy is below the blue box
     }
-    // Only allow damage if canDamage is not false
-    if ((purpleHitbox as any).canDamage === false) return false;
-    // Always trigger fall for hitboxes below
-    pipeManager.triggerFallForHitboxesBelow(purpleHitbox as Phaser.GameObjects.Rectangle, isGameOver);
-    // Check if player is jumping upward (negative Y velocity)
-    if (this.sprite && this.sprite.body && (this.sprite.body as Phaser.Physics.Arcade.Body).velocity.y < 0) {
-      // Apply gravity to the individual purple hitbox
-      const hitbox = purpleHitbox as Phaser.GameObjects.Rectangle;
-      if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
-        hitbox.body.setAllowGravity(true);
-        hitbox.body.setGravityY(800); // Stronger gravity (was 400)
-        // Randomize velocity for more varied destruction effect
-        const randomX = Phaser.Math.Between(-100, 100);
-        const randomY = Phaser.Math.Between(-150, -25);
-        hitbox.body.setVelocity(randomX, randomY);
-        // Removed setDragX since it wasn't working as expected
-      }
-      // Fade out the hitbox over 1000ms
-      this.scene.tweens.add({
-        targets: hitbox,
-        alpha: 0,
-        duration: 1000, // Increased from 300ms to 1000ms
-        ease: 'Linear',
-      });
-      return false; // No damage
-    }
+
     // Not moving upward: trigger damage and stop velocity
     this.stopVelocityOnDamage();
     return true;
@@ -434,6 +514,10 @@ export default class Player {
 
   public get isInvincible() {
     return this.invincible;
+  }
+
+  public get isHoldingSwingFrameActive() {
+    return this.isHoldingSwingFrame;
   }
 
   public getHealth(): number {
@@ -483,39 +567,103 @@ export default class Player {
   // Remove preUpdate syncing
   public preUpdate(): void {}
 
+  // Check if we should exit the swing frame hold state
+  private checkSwingFrameExit(): void {
+    if (!this.isHoldingSwingFrame) return;
+    
+    const timeSinceLastHit = this.scene.time.now - this.lastPurpleCubeHitTime;
+    
+    // Re-enforce the texture in case something else changed it
+    if (this.sprite.texture.key !== 'kilboy_swing_anim3') {
+      this.sprite.setTexture('kilboy_swing_anim3');
+    }
+    
+    // While holding swing pose, actively cut through purple cubes
+    this.cutThroughPurpleCubes();
+    
+    if (timeSinceLastHit > 200) {
+      // More than 200ms since last hit, exit swing state
+      console.log('[SWING HOLD] Ending swing frame hold');
+      this.isHoldingSwingFrame = false;
+      this.sprite.anims.stop();
+      // Reset to default texture
+      this.sprite.setTexture('kilboy');
+      
+      // Clean up timer
+      if (this.swingFrameCheckTimer) {
+        this.swingFrameCheckTimer.remove();
+        this.swingFrameCheckTimer = undefined;
+      }
+    }
+  }
+
+  // Actively cut through purple cubes while holding swing pose
+  private cutThroughPurpleCubes(): void {
+    const pipeManager = (this.scene as any).pipeManager;
+    if (!pipeManager || !pipeManager.purpleHitboxes) return;
+
+    const playerBounds = this.sprite.getBounds();
+    
+    pipeManager.purpleHitboxes.getChildren().forEach((purpleHitbox: any) => {
+      if (!purpleHitbox.active || (purpleHitbox as any).canDamage === false) return;
+      
+      const purpleBounds = purpleHitbox.getBounds();
+      
+      // Check if Kilboy overlaps with this purple cube
+      if (Phaser.Geom.Rectangle.Overlaps(playerBounds, purpleBounds)) {
+        // Cut through this purple cube
+        this.lastPurpleCubeHitTime = this.scene.time.now; // Reset timer
+        (purpleHitbox as any).canDamage = false;
+        
+        // Apply destruction effect
+        if (purpleHitbox.body && purpleHitbox.body instanceof Phaser.Physics.Arcade.Body) {
+          purpleHitbox.body.setAllowGravity(true);
+          purpleHitbox.body.setGravityY(800);
+          const randomX = Phaser.Math.Between(70, 110);
+          const randomY = Phaser.Math.Between(-170, -130);
+          purpleHitbox.body.setVelocity(randomX, randomY);
+        }
+        
+        // Fade out
+        this.scene.tweens.add({
+          targets: purpleHitbox,
+          alpha: 0,
+          duration: PipeManager.PURPLE_CUBE_FADE_DURATION,
+          ease: 'Linear',
+        });
+        
+        // Trigger column collapse
+        pipeManager.triggerFallForHitboxesBelow(purpleHitbox, false);
+      }
+    });
+  }
+
   // Dash state: disables jump, sets x velocity to +50, tweens back to 0 over 100ms, then re-enables jump
   private startDash() {
     if (this.isDashing) return;
-    console.log('[Player] Dash started');
     this.isDashing = true;
     this.canFlap = false;
     if (this.dashTween) this.dashTween.stop();
     const dashBody = this.sprite.body as Phaser.Physics.Arcade.Body;
     if (dashBody) {
-      console.log('[Player] Before dash - x velocity:', dashBody.velocity.x, 'x position:', this.sprite.x);
       dashBody.setVelocityX(1000);
       dashBody.setVelocityY(0);
-      console.log('[Player] After setVelocityX(500) - x velocity:', dashBody.velocity.x);
       let current = { v: 1000 };
       this.dashTween = this.scene.tweens.add({
         targets: current,
         v: 0,
-        duration: 500,
+        duration: 200,
         ease: 'Linear',
         onUpdate: () => {
           dashBody.setVelocityX(current.v);
           dashBody.setVelocityY(0);
-          console.log('[Player] Dash onUpdate - setting x velocity to:', current.v, 'actual velocity:', dashBody.velocity.x, 'position:', this.sprite.x);
         },
         onComplete: () => {
           dashBody.setVelocityX(0);
           this.isDashing = false;
           this.canFlap = true;
-          console.log('[Player] Dash ended - final position:', this.sprite.x);
         }
       });
-    } else {
-      console.log('[Player] ERROR: dashBody is null/undefined!');
     }
   }
 } 

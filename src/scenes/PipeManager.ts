@@ -13,6 +13,9 @@ export default class PipeManager {
   // Add these constants for column logic
   private static readonly numColumns = 5;
   private static readonly hitboxWidth = 12;
+  
+  // Configurable fade duration for purple cubes (in milliseconds)
+  public static readonly PURPLE_CUBE_FADE_DURATION = 1000;
 
   constructor(scene: Phaser.Scene, config: any, difficulties: any, currentDifficulty: string) {
     this.scene = scene;
@@ -53,10 +56,17 @@ export default class PipeManager {
         for (let col = 0; col < numColumns; col++) {
           const hitbox = this.scene.add.rectangle(0, 0, hitboxWidth, hitboxWidth, 0xff8c00, 1) as Phaser.GameObjects.Rectangle & { canDamage?: boolean }; // orange, fully opaque
           hitbox.setOrigin(0, 0);
+          
+          // Set container-relative position
+          const exactX = (col * hitboxWidth) - 2;
+          const exactY = -288 + (row * hitboxWidth);
+          hitbox.setPosition(exactX, exactY);
+          
           this.scene.physics.add.existing(hitbox);
           (hitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
           (hitbox.body as Phaser.Physics.Arcade.Body).setSize(hitboxWidth, hitboxWidth);
           hitbox.canDamage = true;
+          upperPipeContainer.add(hitbox); // Add to container instead of group
           this.purpleHitboxes.add(hitbox);
           pipeHitboxes.push(hitbox);
         }
@@ -164,8 +174,8 @@ export default class PipeManager {
     }
     if (upPipe && (upPipe as any).purpleHitboxes) {
       const pipeHitboxes = (upPipe as any).purpleHitboxes as Phaser.GameObjects.Rectangle[];
-      const pipeX = upPipe.x;
-      const pipeY = upPipe.y;
+      const pipeX = 0; // Container-relative position
+      const pipeY = 0; // Container-relative position
       pipeHitboxes.forEach((hitbox, index) => {
         const row = Math.floor(index / numColumns);
         const col = index % numColumns;
@@ -179,7 +189,6 @@ export default class PipeManager {
         if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
           hitbox.body.setGravityY(0);
           hitbox.body.setVelocityY(0);
-          hitbox.body.setVelocityX(-200);
           hitbox.body.reset(exactX, exactY);
         }
       });
@@ -199,9 +208,10 @@ export default class PipeManager {
     if (this.blueHitboxes) {
       this.blueHitboxes.setVelocityX(-200);
     }
-    if (this.purpleHitboxes) {
-      this.purpleHitboxes.setVelocityX(-200);
-    }
+    // Removed: Purple hitboxes now move with container
+    // if (this.purpleHitboxes) {
+    //   this.purpleHitboxes.setVelocityX(-200);
+    // }
   }
 
   setCurrentDifficulty(currentDifficulty: string) {
@@ -211,20 +221,22 @@ export default class PipeManager {
   getRightMostPipe(): number {
     let rightMostX = 0;
     this.pipes.getChildren().forEach(function (pipe: any) {
-      const sprite = pipe as Phaser.Physics.Arcade.Sprite;
-      rightMostX = Math.max(sprite.x, rightMostX);
+      const container = pipe as Phaser.GameObjects.Container;
+      rightMostX = Math.max(container.x, rightMostX);
     });
     return rightMostX;
   }
 
   recyclePipes(scoreCallback: () => void, saveBestScoreCallback: () => void, increaseDifficultyCallback: () => void, kilboyX?: number) {
-    const tempPipes: Phaser.Physics.Arcade.Sprite[] = [];
+    const tempPipes: any[] = [];
     const recycleThreshold = kilboyX ? kilboyX - 200 : -1; // Recycle when pipe is 200px behind Kilboy
     
     this.pipes.getChildren().forEach((pipe: any) => {
-      const sprite = pipe as Phaser.Physics.Arcade.Sprite;
-      if (sprite.getBounds().right <= recycleThreshold) {
-        tempPipes.push(sprite);
+      const container = pipe as Phaser.GameObjects.Container;
+      // For containers, use x + width to determine right edge
+      const pipeRight = container.x + (container.body ? (container.body as Phaser.Physics.Arcade.Body).width : 60);
+      if (pipeRight <= recycleThreshold) {
+        tempPipes.push(container);
         if (tempPipes.length === 2) {
           this.placePipe(tempPipes[0], tempPipes[1]);
           scoreCallback();
@@ -275,7 +287,7 @@ export default class PipeManager {
                 this.scene.tweens.add({
                   targets: hitbox,
                   alpha: 0,
-                  duration: 500,
+                  duration: PipeManager.PURPLE_CUBE_FADE_DURATION,
                   ease: 'Linear',
                 });
               }

@@ -50,6 +50,7 @@ class PlayScene extends BaseScene {
   private timedEvent?: Phaser.Time.TimerEvent;
   private uiManager!: UIManager;
   public hitStop!: HitStop;
+  private debugYText!: Phaser.GameObjects.Text;
 
   constructor(config: any) {
     super("PlayScene", { ...config, canGoBack: true });
@@ -83,6 +84,7 @@ class PlayScene extends BaseScene {
     this.uiManager.createJumpRectangles();
     this.uiManager.createHealthUI(3);
     this.createPause();
+    this.createDebugUI();
     this.handleInputs();
     this.listenToEvents();
   }
@@ -102,6 +104,11 @@ class PlayScene extends BaseScene {
     this.checkBlueHitboxOverlap();
     this.uiManager.updateHealthUI(this.player.getHealth());
     this.player.updateAttackHitboxPosition();
+    
+    // Update debug Y position
+    if (this.debugYText && this.player && this.player.sprite) {
+      this.debugYText.setText(`Y: ${Math.round(this.player.sprite.y)}`);
+    }
     if (this.isGameOver) {
       this.stopAllAnimationsOnDeath();
       return;
@@ -115,7 +122,7 @@ class PlayScene extends BaseScene {
       this.frameCount = 0;
     }
     if (this.player && this.player.sprite.body && this.player.sprite.body.velocity.y > 0) {
-      if (!this.player.isInvincible) {
+      if (!this.player.isInvincible && !this.player.isHoldingSwingFrameActive) {
         this.player.sprite.setTexture("kilboy");
       }
       if (!this.isGameOver) {
@@ -265,37 +272,26 @@ class PlayScene extends BaseScene {
     });
   }
 
+  private createDebugUI(): void {
+    // Create debug text in top-left corner
+    this.debugYText = this.add
+      .text(10, 10, "Y: 0", {
+        fontSize: "16px",
+        color: "#ffffff",
+        stroke: "#000000",
+        strokeThickness: 2,
+      })
+      .setScrollFactor(0) // Fix to camera
+      .setDepth(20); // Ensure it's on top
+  }
+
   private handleInputs(): void {
     this.input.on("pointerdown", this.flap, this);
     this.input.keyboard?.on("keydown-SPACE", this.flap, this);
   }
 
   private checkGameStatus(): void {
-    if (this.player && this.player.sprite) {
-      if (this.player.sprite.y <= 0) {
-        if (!this.player.isInvincible) {
-          if (this.player.takeHit()) {
-            this.gameOver();
-          }
-          this.uiManager.updateHealthUI(this.player.getHealth());
-        }
-        // Prevent the player from going above the screen
-        this.player.sprite.y = 0;
-        if (this.player.sprite.body && this.player.sprite.body instanceof Phaser.Physics.Arcade.Body) {
-          this.player.sprite.body.setVelocityY(0);
-        }
-      }
-      if (this.player.sprite.y >= this.config.height - this.player.sprite.height) {
-        this.player.sprite.y = this.config.height - this.player.sprite.height;
-        if (
-          this.player.sprite.body &&
-          this.player.sprite.body instanceof Phaser.Physics.Arcade.Body &&
-          this.player.sprite.body.velocity.y > 0 // Only stop downward movement
-        ) {
-          this.player.sprite.body.setVelocityY(0);
-        }
-      }
-    }
+    // Y movement limits removed - Kilboy can now move freely in Y direction
   }
 
   private gameOver(): void {
