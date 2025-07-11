@@ -21,6 +21,11 @@ export default class Player {
   private static readonly ATTACK_RADIUS = 44; // Radius of the attack hitbox (10% bigger)
   private static readonly ATTACK_OFFSET_X = 45; // How far to the right of Kilboy
   private static readonly ATTACK_OFFSET_Y = -10; // Vertical offset from Kilboy's center
+  
+  // Hitstop hitbox configuration
+  private static readonly HITSTOP_RADIUS = 26; // Radius of the hitstop check hitbox (smaller than attack)
+  private static readonly HITSTOP_OFFSET_X = 40; // How far to the right of Kilboy (5px left of attack)
+  private static readonly HITSTOP_OFFSET_Y = -13; // Vertical offset from Kilboy's center (3px up from attack)
 
   private hitstopTriggeredThisSwing: boolean = false;
   private hitstopTriggered: boolean = false;
@@ -107,13 +112,28 @@ export default class Player {
       this.hitstopCooldownActive = false;
     }
     
-    // Clean up any existing swing frame holding state ONLY if no cubes detected ahead
+    // Handle swing frame holding state
     if (this.isHoldingSwingFrame) {
       // Use manual detection to check if cubes are ahead
       const cubesAhead = this.detectCubesAhead();
       if (cubesAhead) {
-        console.log('[FLAP] Preventing swing cleanup - cubes detected ahead via manual detection');
-        return false; // Don't allow new flap while cutting through pillar
+        // Check if jumps are still available
+        const currentJumpCount = (this.scene as any).jumpCount || 0;
+        if (currentJumpCount < 3) {
+          // Jumps available - allow jump but maintain swing state
+          console.log('[FLAP] Jump during extended swing - maintaining swing state');
+          if (this.sprite.body) {
+            (this.sprite.body as Phaser.Physics.Arcade.Body).velocity.y = -initialFlapVelocity;
+          }
+          // Restart swing animation from frame 1
+          this.sprite.anims.play("kilboy_swing_anim", true);
+          console.log('[FLAP] Restarted swing animation from frame 1');
+          return true; // Allow jump without cleaning up swing state
+        } else {
+          // No jumps available - block flap
+          console.log('[FLAP] No jumps available during extended swing');
+          return false;
+        }
       }
       console.log('[FLAP] Cleaning up previous swing frame hold');
       this.isHoldingSwingFrame = false;
@@ -238,18 +258,16 @@ export default class Player {
     }
 
     
-    // Use fixed values for attack hitbox size and position
-    // HitStopCheck hitbox: move 5px left and 3px up
-    const attackX = this.sprite.x + Player.ATTACK_OFFSET_X - 5;
-    const attackY = this.sprite.y + this.sprite.height / 2 + Player.ATTACK_OFFSET_Y - 3;
+    // Use fixed values for hitstop hitbox size and position
+    const hitstopX = this.sprite.x + Player.HITSTOP_OFFSET_X;
+    const hitstopY = this.sprite.y + this.sprite.height / 2 + Player.HITSTOP_OFFSET_Y;
     
-    // Create hitStopCheck hitbox for collision detection (20% smaller)
-    const hitStopCheckRadius = Player.ATTACK_RADIUS * 0.6;
-    this.hitStopCheck = this.scene.add.circle(attackX, attackY, hitStopCheckRadius, 0xff0000, 0.3);
+    // Create hitStopCheck hitbox for collision detection
+    this.hitStopCheck = this.scene.add.circle(hitstopX, hitstopY, Player.HITSTOP_RADIUS, 0xff0000, 0.3);
     this.scene.physics.add.existing(this.hitStopCheck);
     (this.hitStopCheck.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
     (this.hitStopCheck.body as Phaser.Physics.Arcade.Body).setImmovable(true);
-    (this.hitStopCheck.body as Phaser.Physics.Arcade.Body).setCircle(hitStopCheckRadius);
+    (this.hitStopCheck.body as Phaser.Physics.Arcade.Body).setCircle(Player.HITSTOP_RADIUS);
     this.hitStopCheck.setAlpha(0);
     
     // Register hitStopCheck hitbox with hitStop
@@ -270,8 +288,12 @@ export default class Player {
         // Update last purple cube hit timestamp
         this.lastPurpleCubeHitTime = this.scene.time.now;
         
+        // Disable all purple cubes in the same pipe when any cube is hit
+        this.disableAllPurpleCubesInPipe(purple);
+        
         // On collision, trigger hitstop and destroy the hitStopCheck hitbox immediately
-        if ((this.scene as any).hitStop && !this.hitstopTriggered) {
+        // Only trigger hitstop when jump count is 0 (first swing)
+        if ((this.scene as any).hitStop && !this.hitstopTriggered && (this.scene as any).jumpCount === 1) {
           this.canFlap = false;
           this.hitstopTriggeredThisSwing = true;
           this.hitstopTriggered = true;
@@ -336,6 +358,8 @@ export default class Player {
       (attack: any, purple: any) => {
         // Simulate Kilboy's upward hit on purple cube (push effect)
         purple.canDamage = false;
+        // Disable all purple cubes in the same pipe
+        this.disableAllPurpleCubesInPipe(purple);
         // Update last purple cube hit timestamp
         this.lastPurpleCubeHitTime = this.scene.time.now;
         if (purple.body && purple.body instanceof Phaser.Physics.Arcade.Body) {
@@ -365,8 +389,8 @@ export default class Player {
 
   private createLookAheadHitbox() {
     // Create a rectangular hitbox that extends forward from Kilboy to detect purple cubes ahead
-    const lookAheadWidth = 120; // How far ahead to detect
-    const lookAheadHeight = this.sprite.height + 20; // Slightly taller than Kilboy
+    const lookAheadWidth = 24; // How far ahead to detect (80% smaller: 120 * 0.2)
+    const lookAheadHeight = (this.sprite.height) ; // 80% smaller
     const lookAheadX = this.sprite.x + this.sprite.width; // Start from Kilboy's right edge
     const lookAheadY = this.sprite.y + (this.sprite.height / 2) - (lookAheadHeight / 2); // Center vertically
     
@@ -451,6 +475,9 @@ export default class Player {
     if (this.isDashing) {
       console.log('[DASH] Dash collision with purple cube - column collapse already triggered above');
       
+      // Disable all purple cubes in the same pipe
+      this.disableAllPurpleCubesInPipe(purpleHitbox as Phaser.GameObjects.Rectangle);
+      
       // Apply destruction effect to the hit purple box
       const hitbox = purpleHitbox as Phaser.GameObjects.Rectangle;
       if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
@@ -473,8 +500,8 @@ export default class Player {
     }
     
     const anim = this.sprite.anims;
-    // Check if currently in swing animation (any frame) or holding on last frame
-    const isInSwingAnimation = (anim.isPlaying && anim.currentAnim?.key === "kilboy_swing_anim") || this.isHoldingSwingFrame;
+    // Check if currently in swing animation (any frame) or holding on last frame OR have active attack hitbox
+    const isInSwingAnimation = (anim.isPlaying && anim.currentAnim?.key === "kilboy_swing_anim") || this.isHoldingSwingFrame || !!this.attackHitbox;
     // Check if currently in attack animation on first frame  
     const isInAttackAnimationFirstFrame = anim.isPlaying && anim.currentAnim?.key === "kilboy_swing_anim" && anim.currentFrame?.index === 1;
     
@@ -484,6 +511,8 @@ export default class Player {
       (this.scene as any).hitStop?.trigger(1000);
       // Immediately mark this cube as unable to damage to prevent multiple hitstop triggers
       (purpleHitbox as any).canDamage = false;
+      // Disable all purple cubes in the same pipe
+      this.disableAllPurpleCubesInPipe(purpleHitbox as Phaser.GameObjects.Rectangle);
       // Activate global hitstop cooldown
       this.hitstopCooldownActive = true;
       this.scene.time.delayedCall(1500, () => {
@@ -511,8 +540,9 @@ export default class Player {
       return false; // No damage during attack destruction
     }
     
-    // If swinging (any frame), immune to damage
+    // If swinging (any frame) or have active attack hitbox, immune to damage
     if (isInSwingAnimation) {
+      console.log('[IMMUNITY] Protected from damage - swing animation active or attack hitbox present');
       return false; // No damage during swing animation
     }
     // Prevent hit if Kilboy is below the next blue box
@@ -647,7 +677,7 @@ export default class Player {
     // Only exit if both conditions are met:
     // 1. It's been more than the timeout since last hit (longer if cubes ahead)
     // 2. There are no purple cubes ahead in Kilboy's path
-    const timeout = this.cubesDetectedAhead ? 500 : 200; // Longer timeout when cubes detected ahead
+    const timeout = this.cubesDetectedAhead ? 500 : 20; // Much shorter timeout when path is clear
     
     if (timeSinceLastHit > timeout && !this.cubesDetectedAhead) {
       // No recent hit and no cubes ahead, exit swing state
@@ -684,14 +714,38 @@ export default class Player {
     }
   }
   
+  // Disable all purple cubes from the same pipe when one is hit
+  private disableAllPurpleCubesInPipe(hitPurpleCube: Phaser.GameObjects.Rectangle): void {
+    const pipeManager = (this.scene as any).pipeManager;
+    if (!pipeManager || !pipeManager.pipes) return;
+
+    // Find which pipe this purple cube belongs to
+    pipeManager.pipes.getChildren().forEach((pipe: any) => {
+      const upperPipe = pipe as Phaser.GameObjects.Container;
+      if (upperPipe && (upperPipe as any).purpleHitboxes) {
+        const pipeHitboxes = (upperPipe as any).purpleHitboxes as Phaser.GameObjects.Rectangle[];
+        
+        // Check if the hit cube is in this pipe's hitboxes
+        if (pipeHitboxes.includes(hitPurpleCube)) {
+          console.log('[PIPE DISABLE] Disabling all purple cubes in pipe - pipe breached!');
+          // Disable all purple cubes in this pipe
+          pipeHitboxes.forEach((cube: any) => {
+            cube.canDamage = false;
+          });
+          return; // Found the pipe, no need to check others
+        }
+      }
+    });
+  }
+
   // Manually detect if there are purple cubes ahead of Kilboy
   private detectCubesAhead(): boolean {
     const pipeManager = (this.scene as any).pipeManager;
     if (!pipeManager || !pipeManager.purpleHitboxes) return false;
 
-    // Define look-ahead area
-    const lookAheadWidth = 120;
-    const lookAheadHeight = this.sprite.height + 20;
+    // Define look-ahead area (80% smaller: same dimensions as createLookAheadHitbox)
+    const lookAheadWidth = 24;
+    const lookAheadHeight = (this.sprite.height) ;
     const lookAheadX = this.sprite.x + this.sprite.width;
     const lookAheadY = this.sprite.y + (this.sprite.height / 2) - (lookAheadHeight / 2);
     
@@ -730,6 +784,8 @@ export default class Player {
         // Cut through this purple cube
         this.lastPurpleCubeHitTime = this.scene.time.now; // Reset timer
         (purpleHitbox as any).canDamage = false;
+        // Disable all purple cubes in the same pipe
+        this.disableAllPurpleCubesInPipe(purpleHitbox);
         
         // Apply destruction effect
         if (purpleHitbox.body && purpleHitbox.body instanceof Phaser.Physics.Arcade.Body) {
