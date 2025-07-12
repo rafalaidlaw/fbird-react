@@ -275,6 +275,18 @@ export default class Player {
       (this.scene as any).hitStop.register(this.hitStopCheck);
     }
     
+    // Set up overlap detection with pipe containers to trigger purple cube generation
+    this.scene.physics.add.overlap(
+      this.hitStopCheck!,
+      (this.scene as any).pipeManager?.pipes,
+      (hitStop: any, pipeContainer: any) => {
+        // Generate purple cubes for this pipe if not already generated
+        (this.scene as any).pipeManager?.generatePurpleCubesForPipe(pipeContainer);
+      },
+      undefined,
+      this
+    );
+
     // Set up overlap with purple cubes for the hitStopCheck hitbox
     this.scene.physics.add.overlap(
       this.hitStopCheck!,
@@ -351,6 +363,19 @@ export default class Player {
     (this.attackHitbox.body as Phaser.Physics.Arcade.Body).setCircle(Player.ATTACK_RADIUS);
     this.attackHitbox.setAlpha(0); // Fully invisible
     // Do NOT register attack hitbox with hitStop
+    
+    // Set up overlap detection with pipe containers to trigger purple cube generation
+    this.scene.physics.add.overlap(
+      this.attackHitbox!,
+      (this.scene as any).pipeManager?.pipes,
+      (attack: any, pipeContainer: any) => {
+        // Generate purple cubes for this pipe if not already generated
+        (this.scene as any).pipeManager?.generatePurpleCubesForPipe(pipeContainer);
+      },
+      undefined,
+      this
+    );
+
     // Set up overlap with purple cubes for the attack hitbox (push effect, no hitstop)
     this.scene.physics.add.overlap(
       this.attackHitbox!,
@@ -409,6 +434,18 @@ export default class Player {
         // Cube detected ahead
         this.cubesDetectedAhead = true;
         console.log('[LOOK-AHEAD] Purple cube detected ahead');
+      },
+      undefined,
+      this
+    );
+
+    // Set up overlap detection with pipe containers to trigger purple cube generation
+    this.scene.physics.add.overlap(
+      this.lookAheadHitbox!,
+      (this.scene as any).pipeManager?.pipes,
+      (lookAhead: any, pipeContainer: any) => {
+        // Generate purple cubes for this pipe if not already generated
+        (this.scene as any).pipeManager?.generatePurpleCubesForPipe(pipeContainer);
       },
       undefined,
       this
