@@ -11,7 +11,7 @@ export default class Player {
   private hitStopCheck?: Phaser.GameObjects.Arc;
   private hitStopCheckTimer?: Phaser.Time.TimerEvent;
   private attackHitbox?: Phaser.GameObjects.Arc;
-  private lookAheadHitbox?: Phaser.GameObjects.Rectangle;
+  public lookAheadHitbox?: Phaser.GameObjects.Rectangle;
   public canFlap: boolean = true;
   // Add separate hitboxes for upper and lower body
   public upperHitbox?: Phaser.GameObjects.Rectangle;
@@ -36,7 +36,7 @@ export default class Player {
   private lastPurpleCubeHitTime: number = 0;
   private isHoldingSwingFrame: boolean = false;
   private swingFrameCheckTimer?: Phaser.Time.TimerEvent;
-  private cubesDetectedAhead: boolean = false;
+  public cubesDetectedAhead: boolean = false;
 
   constructor(scene: Phaser.Scene, startPosition: { x: number, y: number }) {
     this.scene = scene;
@@ -99,6 +99,9 @@ export default class Player {
 
     // Lower hitbox is not needed for collision, only for reference if you want
     this.lowerHitbox = undefined;
+
+    // Create permanent look ahead hitbox (always active)
+    this.createLookAheadHitbox();
   }
 
   flap(initialFlapVelocity: number): boolean {
@@ -149,11 +152,7 @@ export default class Player {
         this.attackHitbox.destroy();
         this.attackHitbox = undefined;
       }
-      // Clean up look-ahead hitbox from previous swing hold
-      if (this.lookAheadHitbox) {
-        this.lookAheadHitbox.destroy();
-        this.lookAheadHitbox = undefined;
-      }
+      // Look ahead hitbox is now permanent - no need to clean up
     }
     if (this.sprite.body) {
       (this.sprite.body as Phaser.Physics.Arcade.Body).velocity.y = -initialFlapVelocity;
@@ -336,6 +335,59 @@ export default class Player {
       undefined,
       this
     );
+
+    // Set up overlap with maroon cubes for the hitStopCheck hitbox
+    this.scene.physics.add.overlap(
+      this.hitStopCheck!,
+      (this.scene as any).pipeManager?.maroonHitboxes,
+      (attack: any, maroon: any) => {
+        // Only trigger hitstop and dash if the maroon cube can still damage
+        if (maroon.canDamage === false) return;
+        // Check global hitstop cooldown
+        if (this.hitstopCooldownActive) return;
+        
+        // Update last maroon cube hit timestamp
+        this.lastPurpleCubeHitTime = this.scene.time.now;
+        
+        // Disable all maroon cubes in the same pipe when any cube is hit
+        this.disableAllMaroonCubesInPipe(maroon);
+        
+        // Trigger fall for maroon cubes above the hit cube
+        (this.scene as any).pipeManager.triggerFallForHitboxesAbove(maroon, false, false);
+        
+        // On collision, trigger hitstop and destroy the hitStopCheck hitbox immediately
+        // Only trigger hitstop when jump count is 0 (first swing)
+        if ((this.scene as any).hitStop && !this.hitstopTriggered && (this.scene as any).jumpCount === 1) {
+          this.canFlap = false;
+          this.hitstopTriggeredThisSwing = true;
+          this.hitstopTriggered = true;
+          // Immediately mark this cube as unable to damage to prevent multiple hitstop triggers
+          maroon.canDamage = false;
+          // Activate global hitstop cooldown
+          this.hitstopCooldownActive = true;
+          this.scene.time.delayedCall(1000, () => {
+            this.hitstopCooldownActive = false;
+          });
+          (this.scene as any).hitStop.trigger(200, () => {
+            // Start Dash after hitstop ends
+            this.startDash();
+          });
+        }
+        if (this.hitStopCheck) {
+          if ((this.scene as any).hitStop) {
+            (this.scene as any).hitStop.unregister(this.hitStopCheck);
+          }
+          this.hitStopCheck.destroy();
+          this.hitStopCheck = undefined;
+        }
+        // Remove animation update handler so it doesn't create the second hitbox
+        if (this.animationUpdateHandler) {
+          this.sprite.off('animationupdate', this.animationUpdateHandler as any);
+        }
+      },
+      undefined,
+      this
+    );
   }
 
   private createAttackHitbox() {
@@ -347,11 +399,7 @@ export default class Player {
       this.attackHitbox.destroy();
       this.attackHitbox = undefined;
     }
-    // Clean up existing look-ahead hitbox if it exists
-    if (this.lookAheadHitbox) {
-      this.lookAheadHitbox.destroy();
-      this.lookAheadHitbox = undefined;
-    }
+    // Look ahead hitbox is now permanent - no need to clean up
     // Use fixed values for attack hitbox size and position
     const attackX = this.sprite.x + Player.ATTACK_OFFSET_X;
     const attackY = this.sprite.y + this.sprite.height / 2 + Player.ATTACK_OFFSET_Y;
@@ -405,9 +453,40 @@ export default class Player {
       undefined,
       this
     );
+
+    // Set up overlap with maroon cubes for the attack hitbox (push effect, no hitstop)
+    this.scene.physics.add.overlap(
+      this.attackHitbox!,
+      (this.scene as any).pipeManager?.maroonHitboxes,
+      (attack: any, maroon: any) => {
+        // Simulate Kilboy's upward hit on maroon cube (push effect)
+        maroon.canDamage = false;
+        // Disable all maroon cubes in the same pipe
+        this.disableAllMaroonCubesInPipe(maroon);
+        // Update last maroon cube hit timestamp
+        this.lastPurpleCubeHitTime = this.scene.time.now;
+        if (maroon.body && maroon.body instanceof Phaser.Physics.Arcade.Body) {
+          maroon.body.setAllowGravity(true);
+          maroon.body.setGravityY(800);
+          const randomX = Phaser.Math.Between(70, 110);
+          const randomY = Phaser.Math.Between(-170, -130);
+          maroon.body.setVelocity(randomX, randomY);
+        }
+        this.scene.tweens.add({
+          targets: maroon,
+          alpha: 0,
+          duration: PipeManager.MAROON_CUBE_FADE_DURATION,
+          ease: 'Linear',
+        });
+        // Trigger fall for maroon cubes above the hit cube
+        (this.scene as any).pipeManager.triggerFallForHitboxesAbove(maroon, false, false);
+        console.log('[ATTACK] Maroon cube destroyed by attack hitbox - column collapse triggered');
+      },
+      undefined,
+      this
+    );
     
-    // Create look-ahead hitbox to detect purple cubes ahead during swing frame holding
-    this.createLookAheadHitbox();
+    // Look ahead hitbox is now permanent - already exists
     
     // AttackHitbox will be destroyed when swing animation ends, no timer needed
   }
@@ -424,32 +503,9 @@ export default class Player {
     this.scene.physics.add.existing(this.lookAheadHitbox);
     (this.lookAheadHitbox.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
     (this.lookAheadHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
-    this.lookAheadHitbox.setAlpha(0); // Invisible in production
+    this.lookAheadHitbox.setAlpha(0); // Invisible for production
     
-    // Set up overlap detection with purple cubes
-    this.scene.physics.add.overlap(
-      this.lookAheadHitbox!,
-      (this.scene as any).pipeManager?.purpleHitboxes,
-      () => {
-        // Cube detected ahead
-        this.cubesDetectedAhead = true;
-        console.log('[LOOK-AHEAD] Purple cube detected ahead');
-      },
-      undefined,
-      this
-    );
-
-    // Set up overlap detection with pipe containers to trigger purple cube generation
-    this.scene.physics.add.overlap(
-      this.lookAheadHitbox!,
-      (this.scene as any).pipeManager?.pipes,
-      (lookAhead: any, pipeContainer: any) => {
-        // Generate purple cubes for this pipe if not already generated
-        (this.scene as any).pipeManager?.generatePurpleCubesForPipe(pipeContainer);
-      },
-      undefined,
-      this
-    );
+    // Collision detection will be set up in PlayScene's createColiders() method
   }
 
   setInvincible(invincible: boolean) {
@@ -603,7 +659,104 @@ export default class Player {
     return true;
   }
 
-  // Stop velocity when taking damage from purple hitboxes
+  // Handles collision with a maroon hitbox (lower pipe cubes)
+  public handleMaroonHitboxCollision(maroonHitbox: Phaser.GameObjects.GameObject, pipeManager: any, isGameOver: boolean): boolean {
+    // Always trigger fall for hitboxes above on any maroon cube contact (including dash)
+    // This must happen BEFORE canDamage check so dash collisions still trigger column collapse
+    pipeManager.triggerFallForHitboxesAbove(maroonHitbox as Phaser.GameObjects.Rectangle, isGameOver, this.isDashing);
+    if (this.isDashing) {
+      console.log('[DASH] Maroon column collapse triggered for dash collision');
+    }
+    
+    // Check canDamage
+    if ((maroonHitbox as any).canDamage === false) return false;
+    // Check global hitstop cooldown
+    if (this.hitstopCooldownActive) return false;
+    
+    // During dash: trigger maroon boxes but don't take damage
+    if (this.isDashing) {
+      console.log('[DASH] Dash collision with maroon cube - no damage during dash');
+      
+      // Disable all maroon cubes in the same pipe
+      this.disableAllMaroonCubesInPipe(maroonHitbox as Phaser.GameObjects.Rectangle);
+      
+      // Apply destruction effect to the hit maroon box
+      const hitbox = maroonHitbox as Phaser.GameObjects.Rectangle;
+      if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
+        hitbox.body.moves = true; // Re-enable individual movement for destruction
+        hitbox.body.setAllowGravity(true);
+        hitbox.body.setGravityY(800);
+        const randomX = Phaser.Math.Between(-100, 100);
+        const randomY = Phaser.Math.Between(-150, -25);
+        hitbox.body.setVelocity(randomX, randomY);
+      }
+      // Fade out the hitbox
+      this.scene.tweens.add({
+        targets: hitbox,
+        alpha: 0,
+        duration: PipeManager.MAROON_CUBE_FADE_DURATION,
+        ease: 'Linear',
+      });
+      
+      return false; // No damage during dash
+    }
+    
+    const anim = this.sprite.anims;
+    // Check if currently in swing animation (any frame) or holding on last frame OR have active attack hitbox
+    const isInSwingAnimation = (anim.isPlaying && anim.currentAnim?.key === "kilboy_swing_anim") || this.isHoldingSwingFrame || !!this.attackHitbox;
+    // Check if currently in attack animation on first frame  
+    const isInAttackAnimationFirstFrame = anim.isPlaying && anim.currentAnim?.key === "kilboy_swing_anim" && anim.currentFrame?.index === 1;
+    
+    // Special case: Attack destruction (first frame + upward movement)
+    if (isInAttackAnimationFirstFrame && this.sprite && this.sprite.body && (this.sprite.body as Phaser.Physics.Arcade.Body).velocity.y < 0) {
+      // Trigger hitstop
+      (this.scene as any).hitStop?.trigger(1000);
+      // Immediately mark this cube as unable to damage to prevent multiple hitstop triggers
+      (maroonHitbox as any).canDamage = false;
+      // Disable all maroon cubes in the same pipe
+      this.disableAllMaroonCubesInPipe(maroonHitbox as Phaser.GameObjects.Rectangle);
+      // Activate global hitstop cooldown
+      this.hitstopCooldownActive = true;
+      this.scene.time.delayedCall(1500, () => {
+        this.hitstopCooldownActive = false;
+      });
+      
+      // Apply gravity to the individual maroon hitbox (attack destruction)
+      const hitbox = maroonHitbox as Phaser.GameObjects.Rectangle;
+      if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
+        hitbox.body.moves = true; // Re-enable individual movement for destruction
+        hitbox.body.setAllowGravity(true);
+        hitbox.body.setGravityY(800); // Stronger gravity (was 400)
+        // Randomize velocity for more varied destruction effect
+        const randomX = Phaser.Math.Between(-100, 100);
+        const randomY = Phaser.Math.Between(-150, -25);
+        hitbox.body.setVelocity(randomX, randomY);
+      }
+      // Fade out the hitbox
+      this.scene.tweens.add({
+        targets: hitbox,
+        alpha: 0,
+        duration: PipeManager.MAROON_CUBE_FADE_DURATION,
+        ease: 'Linear',
+      });
+      return false; // No damage during attack destruction
+    }
+    
+    // If swinging (any frame) or have active attack hitbox, immune to damage
+    if (isInSwingAnimation) {
+      console.log('[IMMUNITY] Protected from damage - swing animation active or attack hitbox present');
+      return false; // No damage during swing animation
+    }
+    
+    // Maroon cubes don't check for blue box positioning like purple cubes
+    // They provide direct damage when touched
+    
+    // Not moving upward: trigger damage and stop velocity
+    this.stopVelocityOnDamage();
+    return true;
+  }
+
+  // Stop velocity when taking damage from hitboxes
   private stopVelocityOnDamage() {
     if (this.sprite && this.sprite.body) {
       (this.sprite.body as Phaser.Physics.Arcade.Body).setVelocityY(0);
@@ -734,12 +887,7 @@ export default class Player {
         console.log('[SWING HOLD] Cleaned up extended attackHitbox');
       }
       
-      // Clean up look-ahead hitbox
-      if (this.lookAheadHitbox) {
-        this.lookAheadHitbox.destroy();
-        this.lookAheadHitbox = undefined;
-        console.log('[SWING HOLD] Cleaned up look-ahead hitbox');
-      }
+      // Look ahead hitbox is now permanent - no need to clean up
       
       // Clean up timer
       if (this.swingFrameCheckTimer) {
@@ -766,6 +914,30 @@ export default class Player {
         if (pipeHitboxes.includes(hitPurpleCube)) {
           console.log('[PIPE DISABLE] Disabling all purple cubes in pipe - pipe breached!');
           // Disable all purple cubes in this pipe
+          pipeHitboxes.forEach((cube: any) => {
+            cube.canDamage = false;
+          });
+          return; // Found the pipe, no need to check others
+        }
+      }
+    });
+  }
+
+  // Disable all maroon cubes from the same pipe when one is hit
+  private disableAllMaroonCubesInPipe(hitMaroonCube: Phaser.GameObjects.Rectangle): void {
+    const pipeManager = (this.scene as any).pipeManager;
+    if (!pipeManager || !pipeManager.pipes) return;
+
+    // Find which pipe this maroon cube belongs to
+    pipeManager.pipes.getChildren().forEach((pipe: any) => {
+      const lowerPipe = pipe as Phaser.GameObjects.Container;
+      if (lowerPipe && (lowerPipe as any).maroonHitboxes) {
+        const pipeHitboxes = (lowerPipe as any).maroonHitboxes as Phaser.GameObjects.Rectangle[];
+        
+        // Check if the hit cube is in this pipe's hitboxes
+        if (pipeHitboxes.includes(hitMaroonCube)) {
+          console.log('[PIPE DISABLE] Disabling all maroon cubes in pipe - pipe breached!');
+          // Disable all maroon cubes in this pipe
           pipeHitboxes.forEach((cube: any) => {
             cube.canDamage = false;
           });

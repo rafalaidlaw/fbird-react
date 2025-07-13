@@ -9,6 +9,7 @@ export default class PipeManager {
   public greenHitboxes: Phaser.Physics.Arcade.Group;
   public blueHitboxes: Phaser.Physics.Arcade.Group;
   public purpleHitboxes: Phaser.Physics.Arcade.Group;
+  public maroonHitboxes: Phaser.Physics.Arcade.Group;
 
   // Add these constants for column logic
   private static readonly numColumns = 4;
@@ -16,6 +17,9 @@ export default class PipeManager {
   
   // Configurable fade duration for purple cubes (in milliseconds)
   public static readonly PURPLE_CUBE_FADE_DURATION = 1000;
+  
+  // Configurable fade duration for maroon cubes (in milliseconds)
+  public static readonly MAROON_CUBE_FADE_DURATION = 1000;
 
   constructor(scene: Phaser.Scene, config: any, difficulties: any, currentDifficulty: string) {
     this.scene = scene;
@@ -26,6 +30,7 @@ export default class PipeManager {
     this.greenHitboxes = this.scene.physics.add.group();
     this.blueHitboxes = this.scene.physics.add.group();
     this.purpleHitboxes = this.scene.physics.add.group();
+    this.maroonHitboxes = this.scene.physics.add.group();
   }
 
   createPipes(PIPES_TO_RENDER: number) {
@@ -80,6 +85,8 @@ export default class PipeManager {
       const redRect = this.scene.add.rectangle(0, 0, blueWidth, 16, 0xff0000, 0);
       redRect.setOrigin(0, 0);
       lowerPipeContainer.add(redRect);
+      // Initialize empty maroon hitboxes array for lower pipe (will be populated on-demand)
+      (lowerPipeContainer as any).maroonHitboxes = [];
       this.scene.physics.add.existing(lowerPipeContainer);
       (lowerPipeContainer.body as Phaser.Physics.Arcade.Body).setImmovable(true);
       (lowerPipeContainer.body as Phaser.Physics.Arcade.Body).setSize(blueWidth, 320);
@@ -104,6 +111,7 @@ export default class PipeManager {
       this.greenHitboxes.getChildren().forEach(hitbox => (this.scene as any).hitStop.register(hitbox));
       this.blueHitboxes.getChildren().forEach(hitbox => (this.scene as any).hitStop.register(hitbox));
       // Purple hitboxes will be registered when generated on-demand
+      // Maroon hitboxes will be registered when generated on-demand
     }
   }
 
@@ -169,6 +177,61 @@ export default class PipeManager {
     }
   }
 
+  // Generate maroon cubes for a specific lower pipe (called on-demand)
+  public generateMaroonCubesForPipe(pipeContainer: any): void {
+    // Safety check: only generate maroon cubes for lower pipe containers
+    // Lower pipes have redHitbox, upper pipes have blueHitbox
+    if (!(pipeContainer as any).redHitbox) {
+      console.log('[PIPE MANAGER] Skipping maroon cube generation - not a lower pipe container');
+      return; // This is an upper pipe, skip
+    }
+
+    // Check if maroon cubes already exist for this pipe
+    if ((pipeContainer as any).maroonHitboxes && (pipeContainer as any).maroonHitboxes.length > 0) {
+      return; // Already generated, skip
+    }
+
+    const numColumns = PipeManager.numColumns;
+    const hitboxWidth = PipeManager.hitboxWidth;
+    
+    console.log('[PIPE MANAGER] Generating maroon cubes for lower pipe');
+    
+    // Create grid of maroon hitboxes for this lower pipe (fill entire container)
+    const pipeHitboxes: Phaser.GameObjects.Rectangle[] = [];
+    const maroonColumns = numColumns; // Same as purple cubes (4 columns)
+    const maroonRows = Math.floor(320 / hitboxWidth); // Fill the entire 320px height (20 rows)
+    
+    // Position maroon cubes to fill the entire lower pipe area
+    const maroonStartX = 0; // Start at left edge, same as container
+    const maroonStartY = 16; // Start right below the red rectangle
+    
+    for (let row = 0; row < maroonRows; row++) {
+      for (let col = 0; col < maroonColumns; col++) {
+        // Set container-relative position
+        const exactX = maroonStartX + (col * hitboxWidth);
+        const exactY = maroonStartY + (row * hitboxWidth);
+        
+        const hitbox = this.scene.add.rectangle(0, 0, hitboxWidth, hitboxWidth, 0x800000, 1) as Phaser.GameObjects.Rectangle & { canDamage?: boolean }; // maroon color
+        hitbox.setOrigin(0, 0);
+        hitbox.setPosition(exactX, exactY);
+        
+        this.scene.physics.add.existing(hitbox);
+        (hitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
+        (hitbox.body as Phaser.Physics.Arcade.Body).setSize(hitboxWidth, hitboxWidth);
+        hitbox.canDamage = true;
+        pipeContainer.add(hitbox); // Add to container first
+        this.maroonHitboxes.add(hitbox); // Then add to global group
+        pipeHitboxes.push(hitbox);
+      }
+    }
+    (pipeContainer as any).maroonHitboxes = pipeHitboxes;
+
+    // Register new maroon cubes with hitStop if available
+    if ((this.scene as any).hitStop) {
+      pipeHitboxes.forEach(hitbox => (this.scene as any).hitStop.register(hitbox));
+    }
+  }
+
   createRedRectangles() {
     this.pipes?.getChildren().forEach((pipe: Phaser.GameObjects.GameObject) => {
       const sprite = pipe as Phaser.Physics.Arcade.Sprite;
@@ -209,6 +272,15 @@ export default class PipeManager {
       const redHitbox = (lowPipe as any).redHitbox;
       redHitbox.x = lowPipe.x;
       redHitbox.y = lowPipe.y;
+      // Reset red hitbox (green hitbox) physics and effects when recycling
+      if (redHitbox.body && redHitbox.body instanceof Phaser.Physics.Arcade.Body) {
+        redHitbox.body.setGravityY(0);
+        redHitbox.body.setVelocityY(0);
+        redHitbox.setAlpha(0.5); // Reset to original alpha
+        this.scene.tweens.killTweensOf(redHitbox);
+        redHitbox.body.reset(lowPipe.x, lowPipe.y);
+      }
+      redHitbox.angle = 0; // Reset rotation on recycle
     }
     if (upPipe && (upPipe as any).blueHitbox) {
       const blueHitbox = (upPipe as any).blueHitbox;
@@ -238,7 +310,7 @@ export default class PipeManager {
       // If there are existing purple cubes, destroy them and recreate placeholder
       if (pipeHitboxes.length > 0) {
         pipeHitboxes.forEach((hitbox) => {
-          this.scene.tweens.killTweensOf(hitbox);
+        this.scene.tweens.killTweensOf(hitbox);
           this.purpleHitboxes.remove(hitbox);
           hitbox.destroy();
         });
@@ -272,6 +344,22 @@ export default class PipeManager {
         });
       }
     }
+    // Clean up maroon cubes for lower pipes when recycling
+    if (lowPipe && (lowPipe as any).maroonHitboxes) {
+      const pipeHitboxes = (lowPipe as any).maroonHitboxes as Phaser.GameObjects.Rectangle[];
+      
+      // If there are existing maroon cubes, destroy them and reset
+      if (pipeHitboxes.length > 0) {
+        pipeHitboxes.forEach((hitbox) => {
+          this.scene.tweens.killTweensOf(hitbox);
+          this.maroonHitboxes.remove(hitbox);
+          hitbox.destroy();
+        });
+        // Reset to empty array so look ahead detection can work again
+        (lowPipe as any).maroonHitboxes = [];
+        console.log('[PIPE MANAGER] Cleaned up maroon cubes for pipe recycling');
+      }
+    }
     if (this.greenHitboxes) {
       this.greenHitboxes.setVelocityX(-200);
     }
@@ -281,6 +369,10 @@ export default class PipeManager {
     // Removed: Purple hitboxes now move with container
     // if (this.purpleHitboxes) {
     //   this.purpleHitboxes.setVelocityX(-200);
+    // }
+    // Removed: Maroon hitboxes now move with container
+    // if (this.maroonHitboxes) {
+    //   this.maroonHitboxes.setVelocityX(-200);
     // }
   }
 
@@ -317,7 +409,7 @@ export default class PipeManager {
     });
   }
 
-  // Stops all blue box (hitbox and rect) animations
+  // Stops all blue box (hitbox and rect) and red hitbox (green hitbox) animations
   public stopAllBlueBoxAnimations(): void {
     this.pipes.getChildren().forEach((pipe: any) => {
       if (pipe && pipe.blueHitbox) {
@@ -328,8 +420,78 @@ export default class PipeManager {
         this.scene.tweens.killTweensOf(pipe.blueRect);
         // Do not reset angle
       }
+      if (pipe && pipe.redHitbox) {
+        this.scene.tweens.killTweensOf(pipe.redHitbox);
+        // Do not reset angle
+      }
     });
   }
+
+  /**
+   * Makes all maroon hitboxes above the given hitbox in the same column fall and fade out.
+   * @param hitHitbox The hit maroon hitbox (Phaser.GameObjects.Rectangle)
+   * @param isGameOver Whether the game is over
+   * @param isDashTriggered Whether this was triggered by dash
+   */
+  public triggerFallForHitboxesAbove(hitHitbox: Phaser.GameObjects.Rectangle, isGameOver: boolean, isDashTriggered: boolean = false) {
+    this.scene.time.delayedCall(50, () => {
+      this.pipes.getChildren().forEach((pipe: any) => {
+        const lowerPipe = pipe as Phaser.GameObjects.Container;
+        if (lowerPipe && (lowerPipe as any).maroonHitboxes) {
+          const pipeHitboxes = (lowerPipe as any).maroonHitboxes as Phaser.GameObjects.Rectangle[];
+          const hitIndex = pipeHitboxes.indexOf(hitHitbox);
+          if (hitIndex !== -1) {
+            const numColumns = PipeManager.numColumns;
+            const hitRow = Math.floor(hitIndex / numColumns);
+            const hitCol = hitIndex % numColumns;
+            console.log(`[MAROON FALL] Hit maroon cube at row ${hitRow}, col ${hitCol} - triggering fall for cubes above`);
+            
+                         pipeHitboxes.forEach((hitbox, index) => {
+               const row = Math.floor(index / numColumns);
+               const col = index % numColumns;
+               // Trigger fall for cubes ABOVE the hit cube (row < hitRow) in the same column
+               if (col === hitCol && row < hitRow) {
+                 console.log(`[MAROON FALL] Making maroon cube at row ${row}, col ${col} fall`);
+                 if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
+                   hitbox.body.setAllowGravity(true);
+                   hitbox.body.setGravityY(400);
+                 }
+                 this.scene.tweens.add({
+                   targets: hitbox,
+                   alpha: 0,
+                   duration: PipeManager.MAROON_CUBE_FADE_DURATION,
+                   ease: 'Linear',
+                 });
+               }
+             });
+             
+             // Trigger fall for the green hitbox (red rectangle) associated with this pipe only if the first column (col 0) is hit
+             if (hitCol === 0 && lowerPipe && (lowerPipe as any).redHitbox) {
+               const redHitbox = (lowerPipe as any).redHitbox;
+               console.log('[MAROON FALL] Triggering green hitbox (red rectangle) fall for column 0 hit');
+               if (redHitbox.body && redHitbox.body instanceof Phaser.Physics.Arcade.Body) {
+                 redHitbox.body.setGravityY(400);
+                 this.scene.tweens.add({
+                   targets: redHitbox,
+                   alpha: 0,
+                   duration: 500,
+                   ease: 'Linear',
+                 });
+                 if (!isGameOver && !isDashTriggered) {
+                   this.scene.tweens.add({
+                     targets: redHitbox,
+                     angle: 45, // Rotate in the opposite direction from blue hitbox
+                     duration: 500,
+                     ease: 'Linear',
+                   });
+                 }
+               }
+             }
+           }
+         }
+       });
+     });
+   }
 
   /**
    * Makes all purple hitboxes below the given hitbox in the same column fall and fade out.

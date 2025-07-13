@@ -229,6 +229,64 @@ class PlayScene extends BaseScene {
         this
       );
     }
+    // Sprite collides with maroon boxes
+    if (this.player && this.pipeManager.maroonHitboxes) {
+      this.physics.add.collider(
+        this.player.sprite,
+        this.pipeManager.maroonHitboxes,
+        (obj1: any, obj2: any) => {
+          if (obj1 instanceof Phaser.GameObjects.GameObject && obj2 instanceof Phaser.GameObjects.GameObject) {
+            const shouldTakeDamage = this.player.handleMaroonHitboxCollision(obj2, this.pipeManager, this.isGameOver);
+            // Prevent damage if player is in attack swing animation
+            const isInAttackSwing = this.player.sprite.anims.isPlaying && this.player.sprite.anims.currentAnim?.key === "kilboy_swing_anim";
+            if (shouldTakeDamage && !this.player.isInvincible && !isInAttackSwing) {
+              if (this.player.takeHit()) {
+                this.gameOver();
+              }
+              this.uiManager.updateHealthUI(this.player.getHealth());
+            }
+          }
+        },
+        undefined,
+        this
+      );
+    }
+
+    // Look ahead hitbox collision detection
+    if (this.player && this.player.lookAheadHitbox && this.pipeManager.pipes) {
+      // Set up overlap detection with purple cubes
+      this.physics.add.overlap(
+        this.player.lookAheadHitbox,
+        this.pipeManager.purpleHitboxes,
+        () => {
+          // Cube detected ahead
+          this.player.cubesDetectedAhead = true;
+          console.log('[LOOK-AHEAD] Purple cube detected ahead');
+        },
+        undefined,
+        this
+      );
+
+      // Set up overlap detection with pipe containers to trigger purple cube generation
+      this.physics.add.overlap(
+        this.player.lookAheadHitbox,
+        this.pipeManager.pipes,
+        (lookAhead: any, pipeContainer: any) => {
+          // Check if this is an upper pipe (has blueHitbox) or lower pipe (has redHitbox)
+          if ((pipeContainer as any).blueHitbox) {
+            // Generate purple cubes for upper pipe
+            this.pipeManager.generatePurpleCubesForPipe(pipeContainer);
+            console.log('[LOOK-AHEAD] Triggered purple cube generation for upper pipe');
+          } else if ((pipeContainer as any).redHitbox) {
+            // Generate maroon cubes for lower pipe
+            this.pipeManager.generateMaroonCubesForPipe(pipeContainer);
+            console.log('[LOOK-AHEAD] Triggered maroon cube generation for lower pipe');
+          }
+        },
+        undefined,
+        this
+      );
+    }
   }
 
   private handleBlueBoxCollision(blueHitbox: any): void {
@@ -343,8 +401,15 @@ class PlayScene extends BaseScene {
     let firstOverlappingGreen: any = null;
     this.pipeManager.greenHitboxes.getChildren().forEach((hitbox) => {
       if (this.player && this.player.sprite && this.physics.overlap(this.player.sprite, hitbox)) {
-        isOverlapping = true;
-        if (!firstOverlappingGreen) firstOverlappingGreen = hitbox;
+        // Check if the green hitbox is falling (has gravity applied)
+        const hitboxBody = hitbox.body as Phaser.Physics.Arcade.Body;
+        const isFalling = hitboxBody && hitboxBody.gravity.y > 0;
+        
+        if (!isFalling) {
+          // Only allow standing on green hitbox if it's not falling
+          isOverlapping = true;
+          if (!firstOverlappingGreen) firstOverlappingGreen = hitbox;
+        }
       }
     });
     if (isOverlapping) {
