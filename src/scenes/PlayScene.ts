@@ -17,6 +17,8 @@ interface Difficulties {
   hard: Difficulty;
 }
 
+const FALL_GRAVITY_MULTIPLIER = 2.5;
+
 class PlayScene extends BaseScene {
   private player!: Player;
   private pipeManager!: PipeManager;
@@ -146,6 +148,30 @@ class PlayScene extends BaseScene {
         }
       }
     });
+
+    // --- Gravity Multiplier System ---
+    // List of all objects to apply gravity multiplier to
+    const gravityObjects = [
+      this.player.sprite,
+      ...this.pipeManager.purpleHitboxes.getChildren(),
+      ...this.pipeManager.maroonHitboxes.getChildren(),
+      ...this.pipeManager.fallingMaroonHitboxes.getChildren()
+    ];
+    gravityObjects.forEach(obj => {
+      if (obj.body && obj.body instanceof Phaser.Physics.Arcade.Body) {
+        const body = obj.body as Phaser.Physics.Arcade.Body;
+        if (body.velocity.y > 0) {
+          if (body.gravity.y <= 400) {
+            body.gravity.y = 400 * FALL_GRAVITY_MULTIPLIER;
+          }
+        } else if (body.velocity.y < 0) {
+          if (body.gravity.y > 400) {
+            body.gravity.y = 400;
+          }
+        }
+      }
+    });
+    // --- End Gravity Multiplier System ---
   }
 
   private listenToEvents(): void {
@@ -293,6 +319,7 @@ class PlayScene extends BaseScene {
     // Handle blue box collision logic here
     if (this.player && this.player.sprite) {
       (this.player.sprite.body as Phaser.Physics.Arcade.Body).setVelocityY(25);
+      // Reset gravity to normal when hitting blue box
       (this.player.sprite.body as Phaser.Physics.Arcade.Body).setGravityY(400);
       if (this.player) {
         this.player.canFlap = false;
@@ -426,7 +453,11 @@ class PlayScene extends BaseScene {
         this.player.sprite.y = firstOverlappingGreen.y - 48; // Tweak this offset as needed
       }
     } else {
-      (this.player.sprite.body as Phaser.Physics.Arcade.Body).setGravityY(400);
+      // Only reset gravity if the player's gravity multiplier system hasn't applied enhanced gravity
+      const currentGravity = (this.player.sprite.body as Phaser.Physics.Arcade.Body).gravity.y;
+      if (currentGravity <= 400) {
+        (this.player.sprite.body as Phaser.Physics.Arcade.Body).setGravityY(400);
+      }
     }
   }
 
@@ -440,6 +471,7 @@ class PlayScene extends BaseScene {
     });
     if (isOverlapping && !this.isTouchingBlueHitbox) {
       (this.player.sprite.body as Phaser.Physics.Arcade.Body).setVelocityY(25);
+      // Reset gravity to normal when hitting blue box
       (this.player.sprite.body as Phaser.Physics.Arcade.Body).setGravityY(400);
       if (this.player) {
         this.player.canFlap = false;

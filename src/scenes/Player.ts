@@ -37,7 +37,7 @@ export default class Player {
   private isHoldingSwingFrame: boolean = false;
   private swingFrameCheckTimer?: Phaser.Time.TimerEvent;
   public cubesDetectedAhead: boolean = false;
-
+  
   constructor(scene: Phaser.Scene, startPosition: { x: number, y: number }) {
     this.scene = scene;
     this.sprite = this.scene.physics.add
@@ -461,6 +461,7 @@ export default class Player {
       (attack: any, maroon: any) => {
         // Simulate Kilboy's upward hit on maroon cube (push effect)
         maroon.canDamage = false;
+        maroon.wasAttacked = true; // Mark as attacked to prevent column fall inclusion
         // Disable all maroon cubes in the same pipe
         this.disableAllMaroonCubesInPipe(maroon);
         // Update last maroon cube hit timestamp
@@ -472,15 +473,24 @@ export default class Player {
           const randomY = Phaser.Math.Between(-170, -130);
           maroon.body.setVelocity(randomX, randomY);
         }
-        this.scene.tweens.add({
-          targets: maroon,
-          alpha: 0,
-          duration: PipeManager.MAROON_CUBE_FADE_DURATION,
-          ease: 'Linear',
-        });
-        // Trigger fall for maroon cubes above the hit cube
-        (this.scene as any).pipeManager.triggerFallForHitboxesAbove(maroon, false, false);
-        console.log('[ATTACK] Maroon cube destroyed by attack hitbox - column collapse triggered');
+        // Only start fading when Y velocity becomes positive
+        const checkVelocityAndFade = () => {
+          if (maroon.body && maroon.body instanceof Phaser.Physics.Arcade.Body) {
+            if (maroon.body.velocity.y > 0) {
+              this.scene.tweens.add({
+                targets: maroon,
+                alpha: 0,
+                duration: PipeManager.MAROON_CUBE_FADE_DURATION,
+                ease: 'Linear',
+              });
+            } else {
+              // Check again in 50ms if velocity is still negative
+              this.scene.time.delayedCall(50, checkVelocityAndFade);
+            }
+          }
+        };
+        checkVelocityAndFade();
+        console.log('[ATTACK] Maroon cube destroyed by attack hitbox');
       },
       undefined,
       this
@@ -690,13 +700,23 @@ export default class Player {
         const randomY = Phaser.Math.Between(-150, -25);
         hitbox.body.setVelocity(randomX, randomY);
       }
-      // Fade out the hitbox
-      this.scene.tweens.add({
-        targets: hitbox,
-        alpha: 0,
-        duration: PipeManager.MAROON_CUBE_FADE_DURATION,
-        ease: 'Linear',
-      });
+      // Only start fading when Y velocity becomes positive
+      const checkVelocityAndFade = () => {
+        if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
+          if (hitbox.body.velocity.y > 0) {
+            this.scene.tweens.add({
+              targets: hitbox,
+              alpha: 0,
+              duration: PipeManager.MAROON_CUBE_FADE_DURATION,
+              ease: 'Linear',
+            });
+          } else {
+            // Check again in 50ms if velocity is still negative
+            this.scene.time.delayedCall(50, checkVelocityAndFade);
+          }
+        }
+      };
+      checkVelocityAndFade();
       
       return false; // No damage during dash
     }
@@ -732,13 +752,23 @@ export default class Player {
         const randomY = Phaser.Math.Between(-150, -25);
         hitbox.body.setVelocity(randomX, randomY);
       }
-      // Fade out the hitbox
-      this.scene.tweens.add({
-        targets: hitbox,
-        alpha: 0,
-        duration: PipeManager.MAROON_CUBE_FADE_DURATION,
-        ease: 'Linear',
-      });
+      // Only start fading when Y velocity becomes positive
+      const checkVelocityAndFade = () => {
+        if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
+          if (hitbox.body.velocity.y > 0) {
+            this.scene.tweens.add({
+              targets: hitbox,
+              alpha: 0,
+              duration: PipeManager.MAROON_CUBE_FADE_DURATION,
+              ease: 'Linear',
+            });
+          } else {
+            // Check again in 50ms if velocity is still negative
+            this.scene.time.delayedCall(50, checkVelocityAndFade);
+          }
+        }
+      };
+      checkVelocityAndFade();
       return false; // No damage during attack destruction
     }
     
