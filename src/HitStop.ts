@@ -52,6 +52,14 @@ export default class HitStop {
         entry.velocity = body.velocity.clone();
         entry.gravity = body.gravity.clone();
         entry.moves = body.moves;
+        
+        const player = (this.scene as any).player;
+        const isPlayerSprite = player && entry.obj === player.sprite;
+        
+        console.log('[HitStop] Pausing object:', entry.obj);
+        console.log('[HitStop] Is player sprite:', isPlayerSprite);
+        console.log('[HitStop] Saving velocity:', entry.velocity.x, entry.velocity.y);
+        
         body.setVelocity(0, 0);
         body.setGravity(0, 0);
         body.moves = false;
@@ -66,11 +74,35 @@ export default class HitStop {
     });
 
     this.scene.time.delayedCall(duration, () => {
+      console.log('[HitStop] HitStop ending, restoring velocities...');
+      
       this.pausedObjects.forEach(entry => {
         const body = (entry.obj.body as Phaser.Physics.Arcade.Body | undefined);
         // Resume physics
         if (body && entry.velocity && entry.gravity) {
-          body.setVelocity(entry.velocity.x, entry.velocity.y);
+          // For chunk-based system: preserve constant rightward velocity for player
+          const player = (this.scene as any).player;
+          const isPlayerSprite = player && entry.obj === player.sprite;
+          
+          console.log('[HitStop] Restoring velocity for object:', entry.obj);
+          console.log('[HitStop] Is player sprite:', isPlayerSprite);
+          console.log('[HitStop] Original velocity:', entry.velocity.x, entry.velocity.y);
+          
+          if (isPlayerSprite) {
+            // Restore Y velocity but maintain constant X velocity for chunk-based movement
+            // Get the player X velocity from PlayScene
+            const playScene = this.scene as any;
+            const playerXVelocity = playScene.PLAYER_X_VELOCITY || 100; // Default to 100 if not found
+            console.log('[HitStop] Setting player velocity to (', playerXVelocity, ',', entry.velocity.y, ')');
+            body.setVelocity(playerXVelocity, entry.velocity.y);
+            
+            // Double-check that the velocity was set correctly
+            console.log('[HitStop] Player velocity after setting:', body.velocity.x, body.velocity.y);
+          } else {
+            // For non-player objects, restore original velocity
+            console.log('[HitStop] Setting non-player velocity to (', entry.velocity.x, ',', entry.velocity.y, ')');
+            body.setVelocity(entry.velocity.x, entry.velocity.y);
+          }
           body.setGravity(entry.gravity.x, entry.gravity.y);
           body.moves = entry.moves ?? true;
         }
@@ -79,15 +111,26 @@ export default class HitStop {
           entry.obj.anims.resume();
         }
       });
+      
       // Resume any paused timers
       this.pausedTimers.forEach(timer => {
         timer.paused = false;
       });
       this.pausedTimers = [];
       this.isActive = false;
+      
+      // Force-set player X velocity one more time to ensure it's restored
+      const player = (this.scene as any).player;
+      if (player && player.sprite && player.sprite.body) {
+        const playScene = this.scene as any;
+        const playerXVelocity = playScene.PLAYER_X_VELOCITY || 100;
+        console.log('[HitStop] Final check - forcing player X velocity to:', playerXVelocity);
+        (player.sprite.body as Phaser.Physics.Arcade.Body).setVelocityX(playerXVelocity);
+        console.log('[HitStop] Final player velocity:', (player.sprite.body as Phaser.Physics.Arcade.Body).velocity.x, (player.sprite.body as Phaser.Physics.Arcade.Body).velocity.y);
+      }
+      
       if (onEnd) onEnd();
       // Always trigger dash at the end of hitstop if player exists and has startDash
-      const player = (this.scene as any).player;
       if (player && typeof player.startDash === 'function') {
         console.log('[HitStop] Calling player.startDash() from HitStop');
         player.startDash();

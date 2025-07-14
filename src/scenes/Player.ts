@@ -820,7 +820,8 @@ export default class Player {
   private stopVelocityOnDamage() {
     if (this.sprite && this.sprite.body) {
       (this.sprite.body as Phaser.Physics.Arcade.Body).setVelocityY(0);
-      (this.sprite.body as Phaser.Physics.Arcade.Body).setVelocityX(0);
+      // Preserve X velocity for chunk-based movement - don't stop horizontal movement
+      // (this.sprite.body as Phaser.Physics.Arcade.Body).setVelocityX(0);
     }
   }
 
@@ -1089,20 +1090,31 @@ export default class Player {
     if (this.dashTween) this.dashTween.stop();
     const dashBody = this.sprite.body as Phaser.Physics.Arcade.Body;
     if (dashBody) {
+      // Get the constant X velocity from PlayScene for chunk-based movement
+      const playScene = this.scene as any;
+      const playerXVelocity = playScene.PLAYER_X_VELOCITY || 100;
+      
+      // Store the original Y velocity
+      const originalYVelocity = dashBody.velocity.y;
+      
+      // Set dash velocity (higher X for dash effect, preserve Y)
       dashBody.setVelocityX(1000);
-      dashBody.setVelocityY(0);
+      dashBody.setVelocityY(originalYVelocity);
+      
       let current = { v: 1000 };
       this.dashTween = this.scene.tweens.add({
         targets: current,
-        v: 0,
+        v: playerXVelocity, // Tween back to the constant X velocity, not 0
         duration: 200,
         ease: 'Linear',
         onUpdate: () => {
           dashBody.setVelocityX(current.v);
-          dashBody.setVelocityY(0);
+          dashBody.setVelocityY(originalYVelocity);
         },
         onComplete: () => {
-          dashBody.setVelocityX(0);
+          // Restore to the constant X velocity for chunk-based movement
+          dashBody.setVelocityX(playerXVelocity);
+          dashBody.setVelocityY(originalYVelocity);
           this.isDashing = false;
           this.canFlap = true;
         }

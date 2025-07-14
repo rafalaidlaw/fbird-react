@@ -406,6 +406,96 @@ export default class PipeManager {
     this.currentDifficulty = currentDifficulty;
   }
 
+  // Create pipes at fixed positions (for chunk-based system)
+  createPipesAtPosition(x: number, y: number, hasPurpleCubes: boolean = false, hasMaroonCubes: boolean = false): { upperPipe: any, lowerPipe: any } | null {
+    const numColumns = PipeManager.numColumns;
+    const hitboxWidth = PipeManager.hitboxWidth;
+    const blueWidth = numColumns * hitboxWidth;
+    
+    console.log(`[PIPE MANAGER] Creating pipes at position (${x}, ${y})`);
+    
+    // Create upper pipe as a container with orange rectangle
+    const upperPipeContainer = this.scene.add.container(x, y);
+    // Add orange rectangle to container
+    const upperOrangeRect = this.scene.add.rectangle(0, 0, blueWidth, 320, 0xff8c00, 0); // alpha 0
+    upperOrangeRect.setOrigin(0, 1);
+    upperPipeContainer.add(upperOrangeRect);
+    // Add blue rectangle as child of the container
+    const blueRect = this.scene.add.rectangle(0, 0, blueWidth, 32, 0x0000ff, 0);
+    blueRect.setOrigin(0, 0);
+    upperPipeContainer.add(blueRect);
+    // Create separate hitbox for blue rectangle (positioned at bottom of purple cube column)
+    const purpleColumnHeight = 23 * hitboxWidth; // 23 rows × 16px each = 368px
+    const purpleColumnBottom = -288 + purpleColumnHeight; // -288 + 368 = 80
+    const blueHitbox = this.scene.add.rectangle(x - 2, y + purpleColumnBottom, blueWidth, 16, 0x00ffff, 1);
+    blueHitbox.setOrigin(0, 0);
+    this.scene.physics.add.existing(blueHitbox);
+    (blueHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
+    (blueHitbox.body as Phaser.Physics.Arcade.Body).pushable = false;
+    this.blueHitboxes.add(blueHitbox);
+    // Initialize empty purple hitboxes array (will be populated on-demand)
+    (upperPipeContainer as any).purpleHitboxes = [];
+    
+    // Create placeholder orange rectangle covering the purple cube area
+    const purpleAreaWidth = blueWidth; // Same as blue hitbox width
+    const purpleAreaHeight = 23 * hitboxWidth; // 23 rows × 16px = 368px
+    const purpleAreaX = -2; // Same X offset as purple cubes
+    const purpleAreaY = -288;
+    const placeholderRect = this.scene.add.rectangle(purpleAreaX, purpleAreaY, purpleAreaWidth, purpleAreaHeight, 0xff8c00, 1);
+    placeholderRect.setOrigin(0, 0);
+    upperPipeContainer.add(placeholderRect);
+    (upperPipeContainer as any).placeholderRect = placeholderRect;
+    this.scene.physics.add.existing(upperPipeContainer);
+    (upperPipeContainer.body as Phaser.Physics.Arcade.Body).setImmovable(true);
+    // Calculate total height: orange rect goes from -320 to 0, purple cubes go to +80, blue hitbox to +96
+    // Total span: from -320 to +96 = 416px total height
+    const totalContainerHeight = 416;
+    (upperPipeContainer.body as Phaser.Physics.Arcade.Body).setSize(blueWidth, totalContainerHeight);
+    (upperPipeContainer.body as Phaser.Physics.Arcade.Body).setOffset(0, -320);
+    this.pipes.add(upperPipeContainer as any);
+    
+    // Create lower pipe as a container with orange rectangle
+    const lowerPipeContainer = this.scene.add.container(x, y);
+    const orangeRect = this.scene.add.rectangle(0, 0, blueWidth, 320, 0xff8c00);
+    orangeRect.setOrigin(0, 0);
+    orangeRect.setName('orangeRect'); // Give it a name for easy identification
+    lowerPipeContainer.add(orangeRect);
+    const redRect = this.scene.add.rectangle(0, 0, blueWidth, 16, 0xff0000, 0);
+    redRect.setOrigin(0, 0);
+    lowerPipeContainer.add(redRect);
+    // Initialize empty maroon hitboxes array for lower pipe (will be populated on-demand)
+    (lowerPipeContainer as any).maroonHitboxes = [];
+    this.scene.physics.add.existing(lowerPipeContainer);
+    (lowerPipeContainer.body as Phaser.Physics.Arcade.Body).setImmovable(true);
+    (lowerPipeContainer.body as Phaser.Physics.Arcade.Body).setSize(blueWidth, 320);
+    (lowerPipeContainer.body as Phaser.Physics.Arcade.Body).setOffset(0, 16);
+    // Create separate hitbox for red rectangle
+    const redHitbox = this.scene.add.rectangle(x, y, blueWidth, 16, 0x00ff00, 0.5);
+    redHitbox.setOrigin(0, 0);
+    this.scene.physics.add.existing(redHitbox);
+    (redHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
+    this.pipes.add(lowerPipeContainer as any);
+    this.greenHitboxes.add(redHitbox);
+    (lowerPipeContainer as any).redHitbox = redHitbox;
+    (upperPipeContainer as any).blueHitbox = blueHitbox;
+    (upperPipeContainer as any).blueRect = blueRect;
+    (upperPipeContainer as any).purpleHitbox = this.purpleHitboxes;
+    
+    // Generate purple cubes if specified
+    if (hasPurpleCubes) {
+      this.generatePurpleCubesForPipe(upperPipeContainer);
+    }
+    
+    // Generate maroon cubes if specified
+    if (hasMaroonCubes) {
+      this.generateMaroonCubesForPipe(lowerPipeContainer);
+    }
+    
+    console.log(`[PIPE MANAGER] Successfully created pipes at (${x}, ${y})`);
+    
+    return { upperPipe: upperPipeContainer, lowerPipe: lowerPipeContainer };
+  }
+
   getRightMostPipe(): number {
     let rightMostX = 0;
     this.pipes.getChildren().forEach(function (pipe: any) {

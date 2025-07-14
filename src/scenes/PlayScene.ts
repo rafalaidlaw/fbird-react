@@ -1,9 +1,9 @@
 import BaseScene from "./BaseScene";
 import UIManager from "./UIManager";
 import Player from "./Player";
-import PipeManager from "./PipeManager";
+import StaticPipeManager from "./StaticPipeManager";
 import HitStop from "../HitStop";
-import EnemyWalking from "./EnemyWalking";
+import ChunkManager from "./ChunkManager";
 
 const PIPES_TO_RENDER = 4;
 
@@ -19,10 +19,11 @@ interface Difficulties {
 }
 
 const FALL_GRAVITY_MULTIPLIER = 2.5;
+const PLAYER_X_VELOCITY = 200; // Constant rightward velocity for chunk-based movement
 
 class PlayScene extends BaseScene {
   private player!: Player;
-  private pipeManager!: PipeManager;
+  private pipeManager!: StaticPipeManager;
   private isTouchingBlueHitbox: boolean = false;
   private isPaused: boolean = false;
   private isGameOver: boolean = false;
@@ -54,8 +55,15 @@ class PlayScene extends BaseScene {
   private uiManager!: UIManager;
   public hitStop!: HitStop;
   private debugYText!: Phaser.GameObjects.Text;
+  private debugXText!: Phaser.GameObjects.Text;
+  private debugXVelocityText!: Phaser.GameObjects.Text;
+  private debugCameraText!: Phaser.GameObjects.Text;
   private groundPlaneSegments: Phaser.GameObjects.Rectangle[] = [];
-  private enemies: EnemyWalking[] = [];
+  private skyPlaneSegments: Phaser.GameObjects.Rectangle[] = [];
+  private chunkManager!: ChunkManager;
+  
+  // Make PLAYER_X_VELOCITY accessible to other classes
+  public readonly PLAYER_X_VELOCITY = PLAYER_X_VELOCITY;
 
   constructor(config: any) {
     super("PlayScene", { ...config, canGoBack: true });
@@ -72,6 +80,11 @@ class PlayScene extends BaseScene {
     
     this.player = new Player(this, this.config.startPosition);
     
+    // Add constant rightward velocity to player (for chunk-based system)
+    if (this.player.sprite.body) {
+      (this.player.sprite.body as Phaser.Physics.Arcade.Body).setVelocityX(PLAYER_X_VELOCITY); // Constant rightward movement
+    }
+    
     // Create ground plane at Y position 1000 (after player is created)
     this.createGroundPlane();
     // Register the player physics object for hitstop
@@ -83,14 +96,27 @@ class PlayScene extends BaseScene {
     this.cameras.main.setLerp(0.1, 0.1); // Smooth camera movement
     this.cameras.main.setDeadzone(75, 40); // Larger dead zone for more movement freedom
     
-    // Set camera bounds to limit how far down it can pan
-    // Ground plane is at Y=1000, we want only 25px visible, so camera should stop at Y=1000 + 25 = 1025
-    // But we need to account for the camera's center point, so subtract half the screen height
+    // Set camera bounds to allow full vertical movement
+    // Sky plane is at Y=-1000, ground plane is at Y=1000
+    // Camera should be able to follow Kilboy anywhere between these bounds
+    const cameraUpperBound = -1200 - (this.config.height / 2); // Sky Y - sky height - half screen height
     const cameraLowerBound = 1310 - (this.config.height / 2); // Ground Y + visible pixels - half screen height
-    this.cameras.main.setBounds(0, 0, 2000, cameraLowerBound); // Set upper bound for camera Y position
+    this.cameras.main.setBounds(0, cameraUpperBound, 1000000, cameraLowerBound - cameraUpperBound); // Full vertical range
     
-    this.pipeManager = new PipeManager(this, this.config, this.difficulties, this.currentDifficulty);
-    this.pipeManager.createPipes(PIPES_TO_RENDER);
+    this.pipeManager = new StaticPipeManager(this, this.config, this.difficulties, this.currentDifficulty);
+    // Create initial static pipes for testing
+    this.pipeManager.createPipePair(600, 400, 200);
+    this.pipeManager.createPipePair(800, 350, 180);
+    this.pipeManager.createPipePair(1000, 450, 220);
+    
+    // Create ground pipes that come up from the ground plane
+    this.pipeManager.createGroundPipe(1200, 150); // Short ground pipe
+    this.pipeManager.createGroundPipe(1400, 250); // Medium ground pipe
+    this.pipeManager.createGroundPipe(1600, 350); // Tall ground pipe
+    
+    // Initialize ChunkManager (for future use)
+    this.chunkManager = new ChunkManager(this, this.config);
+    
     this.createEnemies();
     this.createColiders();
     this.uiManager = new UIManager(this);
@@ -109,14 +135,8 @@ class PlayScene extends BaseScene {
     this.player.syncUpperHitbox();
     this.player.preUpdate(); // (now does nothing, but kept for structure)
     this.checkGameStatus();
-    this.pipeManager.recyclePipes(
-      () => this.increaseScore(),
-      () => this.saveBestScore(),
-      () => this.increaseDifficulty(),
-      this.player.sprite.x,
-      this.enemies,
-      (greenHitbox: any) => this.createEnemyForGreenHitbox(greenHitbox)
-    );
+    // Recycle static pipes that are far behind the player
+    this.pipeManager.recyclePipes(this.player.sprite.x, 1000);
     this.checkGreenHitboxOverlap();
     this.checkBlueHitboxOverlap();
     this.uiManager.updateHealthUI(this.player.getHealth());
@@ -125,6 +145,47 @@ class PlayScene extends BaseScene {
     // Update debug Y position
     if (this.debugYText && this.player && this.player.sprite) {
       this.debugYText.setText(`Y: ${Math.round(this.player.sprite.y)}`);
+    }
+    
+    // Update debug X position
+    if (this.debugXText && this.player && this.player.sprite) {
+      this.debugXText.setText(`X: ${Math.round(this.player.sprite.x)}`);
+    }
+    
+    // Update debug X velocity
+    if (this.debugXVelocityText && this.player && this.player.sprite && this.player.sprite.body) {
+      const xVelocity = Math.round((this.player.sprite.body as Phaser.Physics.Arcade.Body).velocity.x);
+      this.debugXVelocityText.setText(`X Vel: ${xVelocity}`);
+    }
+    
+    // Update debug camera coordinates
+    if (this.debugCameraText) {
+      const cameraX = Math.round(this.cameras.main.scrollX);
+      const cameraY = Math.round(this.cameras.main.scrollY);
+      this.debugCameraText.setText(`Cam: ${cameraX}, ${cameraY}`);
+    }
+    
+    // Test ChunkManager (temporary debug)
+    if (this.player && this.player.sprite) {
+      const chunkInfo = this.chunkManager.getChunkInfo(this.player.sprite.x);
+      const templateInfo = this.chunkManager.getChunkTemplateInfo(chunkInfo.currentIndex);
+      console.log(`[CHUNK DEBUG] Player X: ${Math.round(this.player.sprite.x)}, Chunk: ${chunkInfo.currentIndex}, Chunk X: ${chunkInfo.chunkX}, Template: ${templateInfo?.templateId || 'none'}, Difficulty: ${templateInfo?.difficulty || 0}`);
+      
+          // Test chunk spawning (temporary)
+    this.chunkManager.checkAndSpawnChunk(this.player.sprite.x);
+    
+    // Test static pipe creation (temporary - only once)
+    if (this.player.sprite.x > 50 && !(this as any).staticPipesTested) {
+      console.log('[TEST] Creating additional static pipes');
+      this.pipeManager.createPipePair(1200, 380, 190);
+      this.pipeManager.createPipePair(1400, 420, 210);
+      (this as any).staticPipesTested = true;
+    }
+    
+    // Debug: Show when we're getting close to the test threshold
+    if (this.player.sprite.x > 30 && this.player.sprite.x <= 50) {
+      console.log(`[TEST DEBUG] Player X: ${Math.round(this.player.sprite.x)}, approaching static pipe test threshold`);
+    }
     }
     if (this.isGameOver) {
       this.stopAllAnimationsOnDeath();
@@ -191,12 +252,10 @@ class PlayScene extends BaseScene {
     // Update ground plane segments - recycle off-screen segments
     this.updateGroundSegments();
     
-    // Update enemies
-    this.enemies.forEach(enemy => {
-      if (enemy.isAlive()) {
-        enemy.update();
-      }
-    });
+    // Update sky plane segments - recycle off-screen segments
+    this.updateSkySegments();
+    
+    // Enemy system temporarily disabled for static pipe testing
   }
 
   private updateGroundSegments(): void {
@@ -229,6 +288,39 @@ class PlayScene extends BaseScene {
     if (rightmostSegment < screenRight + 200) { // 200px buffer
       const newSegmentX = rightmostSegment + segmentWidth;
       this.createGroundSegment(newSegmentX, 1000, segmentWidth, 200);
+    }
+  }
+
+  private updateSkySegments(): void {
+    if (!this.player || !this.player.sprite) return;
+    
+    const playerX = this.player.sprite.x;
+    const screenLeft = playerX - this.config.width / 2;
+    const screenRight = playerX + this.config.width / 2;
+    const segmentWidth = 200;
+    
+    // Remove segments that are too far to the left (off-screen)
+    this.skyPlaneSegments = this.skyPlaneSegments.filter(segment => {
+      const segmentRight = segment.x + segmentWidth;
+      if (segmentRight < screenLeft - 100) { // 100px buffer
+        // Destroy the segment
+        if (segment.body && segment.body instanceof Phaser.Physics.Arcade.Body) {
+          segment.body.destroy();
+        }
+        segment.destroy();
+        return false; // Remove from array
+      }
+      return true; // Keep in array
+    });
+    
+    // Add new segments to the right if needed
+    const rightmostSegment = this.skyPlaneSegments.length > 0 
+      ? Math.max(...this.skyPlaneSegments.map(s => s.x))
+      : screenRight;
+    
+    if (rightmostSegment < screenRight + 200) { // 200px buffer
+      const newSegmentX = rightmostSegment + segmentWidth;
+      this.createSkySegment(newSegmentX, -1000, segmentWidth, 200);
     }
   }
 
@@ -278,11 +370,16 @@ class PlayScene extends BaseScene {
     // Create segmented ground plane system
     this.createInitialGroundSegments();
     
-    // Update world bounds to include the ground plane
-    // The ground plane is at Y=1000, so the world height should extend to 1000 + ground height
+    // Create segmented sky plane system
+    this.createInitialSkySegments();
+    
+    // Update world bounds to include both planes
+    // The ground plane is at Y=1000, sky plane at Y=-1000
     const groundHeight = 200;
+    const skyHeight = 200;
     const worldHeight = 1000 + groundHeight; // Ground Y + ground height
-    this.physics.world.setBounds(15, 0, this.config.width - 15, worldHeight);
+    const worldTop = -1000 - skyHeight; // Sky Y - sky height
+    this.physics.world.setBounds(15, worldTop, this.config.width - 15, worldHeight - worldTop);
   }
 
   private createInitialGroundSegments(): void {
@@ -300,6 +397,21 @@ class PlayScene extends BaseScene {
     }
   }
 
+  private createInitialSkySegments(): void {
+    // Create initial sky segments to cover the starting area
+    const segmentWidth = 200; // Smaller segments for better memory management
+    const skyHeight = 200;
+    const skyY = -1000;
+    
+    // Create segments starting from left edge of world
+    const startX = -200; // Start before screen
+    const endX = this.config.width + 400; // Extend beyond screen
+    
+    for (let x = startX; x < endX; x += segmentWidth) {
+      this.createSkySegment(x, skyY, segmentWidth, skyHeight);
+    }
+  }
+
   private createGroundSegment(x: number, y: number, width: number, height: number): Phaser.GameObjects.Rectangle {
     const groundSegment = this.add.rectangle(x, y, width, height, 0xFF8C00, 1); // Orange color
     groundSegment.setOrigin(0, 0);
@@ -314,11 +426,11 @@ class PlayScene extends BaseScene {
       this.player.sprite,
       groundSegment,
       () => {
-        // Player hit the ground - stop all movement and switch to run texture
+        // Player hit the ground - stop Y movement but preserve X velocity
         if (this.player && this.player.sprite && this.player.sprite.body) {
           const body = this.player.sprite.body as Phaser.Physics.Arcade.Body;
-          // Set both X and Y velocity to 0 to prevent any bouncing
-          body.setVelocity(0, 0);
+          // Only stop Y velocity, preserve X velocity for chunk-based movement
+          body.setVelocityY(0);
           // Switch to run texture when touching ground
           this.player.sprite.setTexture("kilboy_run");
         }
@@ -329,6 +441,37 @@ class PlayScene extends BaseScene {
     
     this.groundPlaneSegments.push(groundSegment);
     return groundSegment;
+  }
+
+  private createSkySegment(x: number, y: number, width: number, height: number): Phaser.GameObjects.Rectangle {
+    const skySegment = this.add.rectangle(x, y, width, height, 0x87CEEB, 1); // Sky blue color
+    skySegment.setOrigin(0, 0);
+    
+    // Add physics to the sky segment
+    this.physics.add.existing(skySegment);
+    (skySegment.body as Phaser.Physics.Arcade.Body).setImmovable(true);
+    (skySegment.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
+    
+    // Add collider with player
+    this.physics.add.collider(
+      this.player.sprite,
+      skySegment,
+      () => {
+        // Player hit the sky - stop Y movement but preserve X velocity
+        if (this.player && this.player.sprite && this.player.sprite.body) {
+          const body = this.player.sprite.body as Phaser.Physics.Arcade.Body;
+          // Only stop Y velocity, preserve X velocity for chunk-based movement
+          body.setVelocityY(0);
+          // Switch to fall texture when hitting sky
+          this.player.sprite.setTexture("kilboy");
+        }
+      },
+      undefined,
+      this
+    );
+    
+    this.skyPlaneSegments.push(skySegment);
+    return skySegment;
   }
 
   private createAdditionalGroundSegment(x: number): void {
@@ -349,11 +492,11 @@ class PlayScene extends BaseScene {
       this.player.sprite,
       groundSegment,
       () => {
-        // Player hit the ground - stop all movement and switch to run texture
+        // Player hit the ground - stop Y movement but preserve X velocity
         if (this.player && this.player.sprite && this.player.sprite.body) {
           const body = this.player.sprite.body as Phaser.Physics.Arcade.Body;
-          // Set both X and Y velocity to 0 to prevent any bouncing
-          body.setVelocity(0, 0);
+          // Only stop Y velocity, preserve X velocity for chunk-based movement
+          body.setVelocityY(0);
           // Switch to run texture when touching ground
           this.player.sprite.setTexture("kilboy_run");
         }
@@ -366,47 +509,11 @@ class PlayScene extends BaseScene {
   }
 
   private createEnemies(): void {
-    // Create enemies on the green platforms (red rectangles) of lower pipes
-    this.pipeManager.greenHitboxes.getChildren().forEach((greenHitbox: any) => {
-      this.createEnemyForGreenHitbox(greenHitbox);
-    });
+    // Enemy system temporarily disabled for static pipe testing
   }
 
   private createEnemyForGreenHitbox(greenHitbox: any): void {
-    // Calculate platform width (should be 64px based on 4 columns * 16px)
-    const platformWidth = 64;
-    
-    // Position enemy on the platform
-    const enemyX = greenHitbox.x + platformWidth / 2; // Center of platform
-    const enemyY = greenHitbox.y - 8; // Slightly above the platform
-    
-    // Create enemy
-    const enemy = new EnemyWalking(this, enemyX, enemyY, platformWidth);
-    this.enemies.push(enemy);
-    
-    // Add collision with player
-    this.physics.add.collider(
-      this.player.sprite,
-      enemy.sprite,
-      () => {
-        // Check if player is attacking (swing animation active)
-        const isInAttackSwing = this.player.sprite.anims.isPlaying && 
-          this.player.sprite.anims.currentAnim?.key === "kilboy_swing_anim";
-        
-        if (isInAttackSwing && enemy.canStillDamagePlayer()) {
-          // Player is attacking - hit the enemy
-          enemy.handlePlayerAttack();
-        } else if (!this.player.isInvincible && !this.isGameOver && enemy.canStillDamagePlayer()) {
-          // Player is not attacking - take damage
-          if (this.player.takeHit()) {
-            this.gameOver();
-          }
-          this.uiManager.updateHealthUI(this.player.getHealth());
-        }
-      },
-      undefined,
-      this
-    );
+    // Enemy system temporarily disabled for static pipe testing
   }
 
   private createColiders(): void {
@@ -562,6 +669,39 @@ class PlayScene extends BaseScene {
     // Create debug text in top-left corner
     this.debugYText = this.add
       .text(10, 10, "Y: 0", {
+        fontSize: "16px",
+        color: "#ffffff",
+        stroke: "#000000",
+        strokeThickness: 2,
+      })
+      .setScrollFactor(0) // Fix to camera
+      .setDepth(20); // Ensure it's on top
+    
+    // Create X position debug text below Y position
+    this.debugXText = this.add
+      .text(10, 30, "X: 0", {
+        fontSize: "16px",
+        color: "#ffffff",
+        stroke: "#000000",
+        strokeThickness: 2,
+      })
+      .setScrollFactor(0) // Fix to camera
+      .setDepth(20); // Ensure it's on top
+    
+    // Create X velocity debug text below X position
+    this.debugXVelocityText = this.add
+      .text(10, 50, "X Vel: 0", {
+        fontSize: "16px",
+        color: "#ffffff",
+        stroke: "#000000",
+        strokeThickness: 2,
+      })
+      .setScrollFactor(0) // Fix to camera
+      .setDepth(20); // Ensure it's on top
+    
+    // Create camera coordinates debug text below X velocity
+    this.debugCameraText = this.add
+      .text(10, 70, "Cam: 0, 0", {
         fontSize: "16px",
         color: "#ffffff",
         stroke: "#000000",
