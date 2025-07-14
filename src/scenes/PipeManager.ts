@@ -256,7 +256,7 @@ export default class PipeManager {
     });
   }
 
-  placePipe(upPipe: any, lowPipe: any) {
+  placePipe(upPipe: any, lowPipe: any, enemyCreationCallback?: (greenHitbox: any) => void) {
     const numColumns = PipeManager.numColumns;
     const hitboxWidth = PipeManager.hitboxWidth;
     const rightMostX = this.getRightMostPipe();
@@ -394,6 +394,12 @@ export default class PipeManager {
     // if (this.maroonHitboxes) {
     //   this.maroonHitboxes.setVelocityX(-200);
     // }
+
+    // Create enemy on the lower pipe's green hitbox if callback is provided
+    if (enemyCreationCallback && lowPipe && (lowPipe as any).redHitbox) {
+      const greenHitbox = (lowPipe as any).redHitbox;
+      enemyCreationCallback(greenHitbox);
+    }
   }
 
   setCurrentDifficulty(currentDifficulty: string) {
@@ -409,8 +415,9 @@ export default class PipeManager {
     return rightMostX;
   }
 
-  recyclePipes(scoreCallback: () => void, saveBestScoreCallback: () => void, increaseDifficultyCallback: () => void, kilboyX?: number) {
+  recyclePipes(scoreCallback: () => void, saveBestScoreCallback: () => void, increaseDifficultyCallback: () => void, kilboyX?: number, enemies?: any[], enemyCreationCallback?: (greenHitbox: any) => void) {
     const tempPipes: any[] = [];
+    const recycledPipes: any[] = [];
     const recycleThreshold = kilboyX ? kilboyX - 200 : -1; // Recycle when pipe is 200px behind Kilboy
     
     this.pipes.getChildren().forEach((pipe: any) => {
@@ -419,12 +426,46 @@ export default class PipeManager {
       const pipeRight = container.x + (container.body ? (container.body as Phaser.Physics.Arcade.Body).width : 60);
       if (pipeRight <= recycleThreshold) {
         tempPipes.push(container);
+        recycledPipes.push(container);
         if (tempPipes.length === 2) {
-          this.placePipe(tempPipes[0], tempPipes[1]);
+          this.placePipe(tempPipes[0], tempPipes[1], enemyCreationCallback);
           scoreCallback();
           saveBestScoreCallback();
           increaseDifficultyCallback();
         }
+      }
+    });
+
+    // Recycle enemies associated with recycled pipes
+    if (enemies && recycledPipes.length > 0) {
+      this.recycleEnemiesForPipes(recycledPipes, enemies);
+    }
+  }
+
+  // Method to recycle enemies associated with recycled pipes
+  recycleEnemiesForPipes(recycledPipes: any[], enemies: any[]): void {
+    recycledPipes.forEach(pipe => {
+      // Find enemies that are associated with this pipe (lower pipe with green hitbox)
+      if ((pipe as any).redHitbox) {
+        // This is a lower pipe with a green hitbox - find enemies on this platform
+        const pipeX = pipe.x;
+        const pipeY = pipe.y;
+        
+        enemies.forEach((enemy, index) => {
+          if (enemy && enemy.sprite && enemy.isAlive()) {
+            // Check if enemy is on this pipe's platform
+            const enemyX = enemy.sprite.x;
+            const enemyY = enemy.sprite.y;
+            
+            // If enemy is close to this pipe's position, recycle it
+            const distanceThreshold = 100; // Adjust as needed
+            if (Math.abs(enemyX - pipeX) < distanceThreshold && Math.abs(enemyY - pipeY) < distanceThreshold) {
+              console.log('[ENEMY RECYCLE] Recycling enemy associated with recycled pipe');
+              enemy.sprite.destroy();
+              enemies.splice(index, 1);
+            }
+          }
+        });
       }
     });
   }

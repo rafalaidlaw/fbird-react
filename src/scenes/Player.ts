@@ -82,7 +82,7 @@ export default class Player {
       (this.sprite.body as Phaser.Physics.Arcade.Body).pushable = false;
     }
     // this.sprite.setCollideWorldBounds(true);
-    this.scene.physics.world.setBounds(15, 0, this.scene.sys.game.config.width as number - 15, this.scene.sys.game.config.height as number);
+    // World bounds are now set in PlayScene to include the ground plane
 
     // Upper hitbox for blue box collisions (sensor only)
     this.upperHitbox = this.scene.add.rectangle(this.sprite.x, this.sprite.y, hitboxWidth, hitboxHeight, 0x0000ff, 0.3);
@@ -388,6 +388,21 @@ export default class Player {
       undefined,
       this
     );
+
+    // Set up overlap with enemies for the hitStopCheck hitbox
+    this.scene.physics.add.overlap(
+      this.hitStopCheck!,
+      (this.scene as any).enemies,
+      (attack: any, enemy: any) => {
+        // Check if enemy can still be hit
+        if (enemy.canStillDamagePlayer()) {
+          enemy.handlePlayerAttack();
+          console.log('[HITSTOP] Enemy hit by hitStopCheck hitbox');
+        }
+      },
+      undefined,
+      this
+    );
   }
 
   private createAttackHitbox() {
@@ -491,6 +506,21 @@ export default class Player {
         };
         checkVelocityAndFade();
         console.log('[ATTACK] Maroon cube destroyed by attack hitbox');
+      },
+      undefined,
+      this
+    );
+
+    // Set up overlap with enemies for the attack hitbox
+    this.scene.physics.add.overlap(
+      this.attackHitbox!,
+      (this.scene as any).enemies,
+      (attack: any, enemy: any) => {
+        // Check if enemy can still be hit
+        if (enemy.canStillDamagePlayer()) {
+          enemy.handlePlayerAttack();
+          console.log('[ATTACK] Enemy hit by attack hitbox');
+        }
       },
       undefined,
       this
