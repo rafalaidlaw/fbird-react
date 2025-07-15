@@ -22,7 +22,7 @@ const oldCivic = {
 
 
 const printSummary = (item: Reportable): void => {
-        console.log(item.summary());
+    
 }
 
 printSummary(oldCivic);

@@ -123,7 +123,7 @@ export default class PipeManager {
     // Safety check: only generate purple cubes for upper pipe containers
     // Upper pipes have blueHitbox, lower pipes have redHitbox
     if (!(pipeContainer as any).blueHitbox) {
-      console.log('[PIPE MANAGER] Skipping purple cube generation - not an upper pipe container');
+
       return; // This is a lower pipe, skip
     }
 
@@ -135,7 +135,7 @@ export default class PipeManager {
     const numColumns = PipeManager.numColumns;
     const hitboxWidth = PipeManager.hitboxWidth;
     
-    console.log('[PIPE MANAGER] Generating purple cubes for pipe');
+
     
     // Destroy the placeholder orange rectangle
     if ((pipeContainer as any).placeholderRect) {
@@ -164,7 +164,7 @@ export default class PipeManager {
         hitbox.setPosition(exactX, exactY);
         
         this.scene.physics.add.existing(hitbox);
-        (hitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
+        (hitbox.body as Phaser.Physics.Arcade.Body).setImmovable(false); // Allow movement for gravity/velocity
         (hitbox.body as Phaser.Physics.Arcade.Body).setSize(hitboxWidth, hitboxWidth);
         hitbox.canDamage = true;
         pipeContainer.add(hitbox); // Add to container first
@@ -185,7 +185,7 @@ export default class PipeManager {
     // Safety check: only generate maroon cubes for lower pipe containers
     // Lower pipes have redHitbox, upper pipes have blueHitbox
     if (!(pipeContainer as any).redHitbox) {
-      console.log('[PIPE MANAGER] Skipping maroon cube generation - not a lower pipe container');
+
       return; // This is an upper pipe, skip
     }
 
@@ -197,13 +197,13 @@ export default class PipeManager {
     const numColumns = PipeManager.numColumns;
     const hitboxWidth = PipeManager.hitboxWidth;
     
-    console.log('[PIPE MANAGER] Generating maroon cubes for lower pipe');
+
     
     // Destroy the orange rectangle when maroon cubes spawn
     const orangeRect = pipeContainer.getByName('orangeRect') || pipeContainer.getAt(0);
     if (orangeRect) {
       orangeRect.destroy();
-      console.log('[PIPE MANAGER] Destroyed orange rectangle for maroon cube generation');
+
     }
     
     // Create grid of maroon hitboxes for this lower pipe (fill entire container)
@@ -367,7 +367,7 @@ export default class PipeManager {
         });
         // Reset to empty array so look ahead detection can work again
         (lowPipe as any).maroonHitboxes = [];
-        console.log('[PIPE MANAGER] Cleaned up maroon cubes for pipe recycling');
+    
         
         // Recreate the orange rectangle for the lower pipe
         const numColumns = PipeManager.numColumns;
@@ -377,7 +377,7 @@ export default class PipeManager {
         orangeRect.setOrigin(0, 0);
         orangeRect.setName('orangeRect');
         lowPipe.add(orangeRect);
-        console.log('[PIPE MANAGER] Recreated orange rectangle for pipe recycling');
+    
       }
     }
     if (this.greenHitboxes) {
@@ -412,7 +412,7 @@ export default class PipeManager {
     const hitboxWidth = PipeManager.hitboxWidth;
     const blueWidth = numColumns * hitboxWidth;
     
-    console.log(`[PIPE MANAGER] Creating pipes at position (${x}, ${y})`);
+
     
     // Create upper pipe as a container with orange rectangle
     const upperPipeContainer = this.scene.add.container(x, y);
@@ -491,7 +491,7 @@ export default class PipeManager {
       this.generateMaroonCubesForPipe(lowerPipeContainer);
     }
     
-    console.log(`[PIPE MANAGER] Successfully created pipes at (${x}, ${y})`);
+
     
     return { upperPipe: upperPipeContainer, lowerPipe: lowerPipeContainer };
   }
@@ -550,7 +550,7 @@ export default class PipeManager {
             // If enemy is close to this pipe's position, recycle it
             const distanceThreshold = 100; // Adjust as needed
             if (Math.abs(enemyX - pipeX) < distanceThreshold && Math.abs(enemyY - pipeY) < distanceThreshold) {
-              console.log('[ENEMY RECYCLE] Recycling enemy associated with recycled pipe');
+          
               enemy.sprite.destroy();
               enemies.splice(index, 1);
             }
@@ -595,7 +595,7 @@ export default class PipeManager {
             const numColumns = PipeManager.numColumns;
             const hitRow = Math.floor(hitIndex / numColumns);
             const hitCol = hitIndex % numColumns;
-            console.log(`[MAROON FALL] Hit maroon cube at row ${hitRow}, col ${hitCol} - triggering fall for cubes above`);
+        
             
                          pipeHitboxes.forEach((hitbox, index) => {
                const row = Math.floor(index / numColumns);
@@ -603,7 +603,7 @@ export default class PipeManager {
                // Trigger fall for cubes ABOVE the hit cube (row < hitRow) in the same column
                // Skip boxes that were attacked by the attack hitbox
                if (col === hitCol && row < hitRow && !(hitbox as any).wasAttacked) {
-                 console.log(`[MAROON FALL] Making maroon cube at row ${row}, col ${col} fall`);
+             
                  if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
                    // Move to falling group to separate from container physics
                    this.maroonHitboxes.remove(hitbox);
@@ -644,7 +644,7 @@ export default class PipeManager {
              // Trigger fall for the green hitbox (red rectangle) associated with this pipe only if the rightmost column (col 3) is hit
              if (hitCol === 3 && lowerPipe && (lowerPipe as any).redHitbox) {
                const redHitbox = (lowerPipe as any).redHitbox;
-               console.log('[MAROON FALL] Triggering green hitbox (red rectangle) fall for rightmost column hit');
+           
                if (redHitbox.body && redHitbox.body instanceof Phaser.Physics.Arcade.Body) {
                  // Add a tiny upward velocity before falling
                  redHitbox.body.setVelocityY(-20);

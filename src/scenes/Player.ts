@@ -124,21 +124,21 @@ export default class Player {
         const currentJumpCount = (this.scene as any).jumpCount || 0;
         if (currentJumpCount < 3) {
           // Jumps available - allow jump but maintain swing state
-          console.log('[FLAP] Jump during extended swing - maintaining swing state');
+
           if (this.sprite.body) {
             (this.sprite.body as Phaser.Physics.Arcade.Body).velocity.y = -initialFlapVelocity;
           }
           // Restart swing animation from frame 1
           this.sprite.anims.play("kilboy_swing_anim", true);
-          console.log('[FLAP] Restarted swing animation from frame 1');
+
           return true; // Allow jump without cleaning up swing state
         } else {
           // No jumps available - block flap
-          console.log('[FLAP] No jumps available during extended swing');
+
           return false;
         }
       }
-      console.log('[FLAP] Cleaning up previous swing frame hold');
+
       this.isHoldingSwingFrame = false;
       if (this.swingFrameCheckTimer) {
         this.swingFrameCheckTimer.remove();
@@ -189,11 +189,11 @@ export default class Player {
     // Add animation complete handler to hold on last frame
     const animationCompleteHandler = (anim: Phaser.Animations.Animation) => {
       if (anim.key === 'kilboy_swing_anim') {
-        console.log('[SWING HOLD] Animation complete triggered');
+
         const timeSinceLastHit = this.scene.time.now - this.lastPurpleCubeHitTime;
         if (timeSinceLastHit <= 200) {
           // Recently hit a purple cube, hold on last frame regardless of which frame we're on
-          console.log('[SWING HOLD] Starting swing frame hold - recent purple cube hit');
+
           this.isHoldingSwingFrame = true;
           // Stop the animation system completely
           this.sprite.anims.stop();
@@ -201,7 +201,7 @@ export default class Player {
           this.sprite.setTexture('kilboy_swing_anim3');
           
           // AttackHitbox will stay active during swing frame holding (no timer to cancel)
-          console.log('[SWING HOLD] AttackHitbox extended during swing frame hold');
+
           
           // Start periodic check to see when to exit
           if (this.swingFrameCheckTimer) {
@@ -215,7 +215,7 @@ export default class Player {
           });
         } else {
           // No recent hit, exit normally and clean up attackHitbox
-          console.log('[SWING HOLD] Animation complete - no recent hit, cleaning up');
+
           if (this.attackHitbox) {
             if ((this.scene as any).hitStop) {
               (this.scene as any).hitStop.unregister(this.attackHitbox);
@@ -397,7 +397,7 @@ export default class Player {
         // Check if enemy can still be hit
         if (enemy.canStillDamagePlayer()) {
           enemy.handlePlayerAttack();
-          console.log('[HITSTOP] Enemy hit by hitStopCheck hitbox');
+  
         }
       },
       undefined,
@@ -451,18 +451,24 @@ export default class Player {
         // Update last purple cube hit timestamp
         this.lastPurpleCubeHitTime = this.scene.time.now;
         if (purple.body && purple.body instanceof Phaser.Physics.Arcade.Body) {
+          // Move to falling group to prevent collision with player
+          (this.scene as any).pipeManager.purpleHitboxes.remove(purple);
+          (this.scene as any).pipeManager.fallingPurpleHitboxes.add(purple);
+          
           purple.body.setAllowGravity(true);
           purple.body.setGravityY(800);
           const randomX = Phaser.Math.Between(70, 110);
           const randomY = Phaser.Math.Between(-170, -130);
           purple.body.setVelocity(randomX, randomY);
+          
+          // Start fading immediately when X velocity is applied
+          this.scene.tweens.add({
+            targets: purple,
+            alpha: 0,
+            duration: PipeManager.PURPLE_CUBE_FADE_DURATION,
+            ease: 'Linear',
+          });
         }
-        this.scene.tweens.add({
-          targets: purple,
-          alpha: 0,
-          duration: PipeManager.PURPLE_CUBE_FADE_DURATION,
-          ease: 'Linear',
-        });
         (this.scene as any).pipeManager.triggerFallForHitboxesBelow(purple, false, false);
       },
       undefined,
@@ -505,7 +511,7 @@ export default class Player {
           }
         };
         checkVelocityAndFade();
-        console.log('[ATTACK] Maroon cube destroyed by attack hitbox');
+
       },
       undefined,
       this
@@ -519,7 +525,7 @@ export default class Player {
         // Check if enemy can still be hit
         if (enemy.canStillDamagePlayer()) {
           enemy.handlePlayerAttack();
-          console.log('[ATTACK] Enemy hit by attack hitbox');
+  
         }
       },
       undefined,
@@ -596,17 +602,20 @@ export default class Player {
     // This must happen BEFORE canDamage check so dash collisions still trigger column collapse
     pipeManager.triggerFallForHitboxesBelow(purpleHitbox as Phaser.GameObjects.Rectangle, isGameOver, this.isDashing);
     if (this.isDashing) {
-      console.log('[DASH] Column collapse triggered for dash collision - blue cubes will not rotate');
+      
     }
     
     // Check canDamage after column collapse to allow dash to trigger columns
     if ((purpleHitbox as any).canDamage === false) return false;
+    
+
+    
     // Check global hitstop cooldown
     if (this.hitstopCooldownActive) return false;
     
     // During dash: trigger purple boxes but don't take damage
     if (this.isDashing) {
-      console.log('[DASH] Dash collision with purple cube - column collapse already triggered above');
+      
       
       // Disable all purple cubes in the same pipe
       this.disableAllPurpleCubesInPipe(purpleHitbox as Phaser.GameObjects.Rectangle);
@@ -620,14 +629,15 @@ export default class Player {
         const randomX = Phaser.Math.Between(-100, 100);
         const randomY = Phaser.Math.Between(-150, -25);
         hitbox.body.setVelocity(randomX, randomY);
+        
+        // Start fading immediately when X velocity is applied
+        this.scene.tweens.add({
+          targets: hitbox,
+          alpha: 0,
+          duration: PipeManager.PURPLE_CUBE_FADE_DURATION,
+          ease: 'Linear',
+        });
       }
-      // Fade out the hitbox
-      this.scene.tweens.add({
-        targets: hitbox,
-        alpha: 0,
-        duration: PipeManager.PURPLE_CUBE_FADE_DURATION,
-        ease: 'Linear',
-      });
       
       return false; // No damage during dash
     }
@@ -662,20 +672,20 @@ export default class Player {
         const randomX = Phaser.Math.Between(-100, 100);
         const randomY = Phaser.Math.Between(-150, -25);
         hitbox.body.setVelocity(randomX, randomY);
+        
+        // Start fading immediately when X velocity is applied
+        this.scene.tweens.add({
+          targets: hitbox,
+          alpha: 0,
+          duration: PipeManager.PURPLE_CUBE_FADE_DURATION,
+          ease: 'Linear',
+        });
       }
-      // Fade out the hitbox
-      this.scene.tweens.add({
-        targets: hitbox,
-        alpha: 0,
-        duration: PipeManager.PURPLE_CUBE_FADE_DURATION,
-        ease: 'Linear',
-      });
       return false; // No damage during attack destruction
     }
     
     // If swinging (any frame) or have active attack hitbox, immune to damage
     if (isInSwingAnimation) {
-      console.log('[IMMUNITY] Protected from damage - swing animation active or attack hitbox present');
       return false; // No damage during swing animation
     }
     // Prevent hit if Kilboy is below the next blue box
@@ -696,6 +706,18 @@ export default class Player {
 
     // Not moving upward: trigger damage and stop velocity
     this.stopVelocityOnDamage();
+    
+    // Move hitbox to falling group after damage is processed
+    const hitbox = purpleHitbox as Phaser.GameObjects.Rectangle;
+    if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
+      const body = hitbox.body as Phaser.Physics.Arcade.Body;
+      if (Math.abs(body.velocity.x) > 5 || Math.abs(body.velocity.y) > 5) {
+        // Move to falling group to prevent further collisions
+        (this.scene as any).pipeManager.purpleHitboxes.remove(hitbox);
+        (this.scene as any).pipeManager.fallingPurpleHitboxes.add(hitbox);
+      }
+    }
+    
     return true;
   }
 
@@ -705,17 +727,19 @@ export default class Player {
     // This must happen BEFORE canDamage check so dash collisions still trigger column collapse
     pipeManager.triggerFallForHitboxesAbove(maroonHitbox as Phaser.GameObjects.Rectangle, isGameOver, this.isDashing);
     if (this.isDashing) {
-      console.log('[DASH] Maroon column collapse triggered for dash collision');
+      
     }
     
     // Check canDamage
     if ((maroonHitbox as any).canDamage === false) return false;
+    
+
+    
     // Check global hitstop cooldown
     if (this.hitstopCooldownActive) return false;
     
     // During dash: trigger maroon boxes but don't take damage
     if (this.isDashing) {
-      console.log('[DASH] Dash collision with maroon cube - no damage during dash');
       
       // Disable all maroon cubes in the same pipe
       this.disableAllMaroonCubesInPipe(maroonHitbox as Phaser.GameObjects.Rectangle);
@@ -804,7 +828,6 @@ export default class Player {
     
     // If swinging (any frame) or have active attack hitbox, immune to damage
     if (isInSwingAnimation) {
-      console.log('[IMMUNITY] Protected from damage - swing animation active or attack hitbox present');
       return false; // No damage during swing animation
     }
     
@@ -932,7 +955,7 @@ export default class Player {
     
     if (timeSinceLastHit > timeout && !this.cubesDetectedAhead) {
       // No recent hit and no cubes ahead, exit swing state
-      console.log('[SWING HOLD] Ending swing frame hold - no recent hits and no cubes ahead');
+      
       this.isHoldingSwingFrame = false;
       this.sprite.anims.stop();
       // Reset to default texture
@@ -945,7 +968,7 @@ export default class Player {
         }
         this.attackHitbox.destroy();
         this.attackHitbox = undefined;
-        console.log('[SWING HOLD] Cleaned up extended attackHitbox');
+
       }
       
       // Look ahead hitbox is now permanent - no need to clean up
@@ -956,7 +979,7 @@ export default class Player {
         this.swingFrameCheckTimer = undefined;
       }
     } else if (this.cubesDetectedAhead && timeSinceLastHit > 200) {
-      console.log('[SWING HOLD] Continuing swing - purple cubes detected ahead');
+      
     }
   }
   
@@ -973,7 +996,7 @@ export default class Player {
         
         // Check if the hit cube is in this pipe's hitboxes
         if (pipeHitboxes.includes(hitPurpleCube)) {
-          console.log('[PIPE DISABLE] Disabling all purple cubes in pipe - pipe breached!');
+    
           // Disable all purple cubes in this pipe
           pipeHitboxes.forEach((cube: any) => {
             cube.canDamage = false;
@@ -997,7 +1020,7 @@ export default class Player {
         
         // Check if the hit cube is in this pipe's hitboxes
         if (pipeHitboxes.includes(hitMaroonCube)) {
-          console.log('[PIPE DISABLE] Disabling all maroon cubes in pipe - pipe breached!');
+    
           // Disable all maroon cubes in this pipe
           pipeHitboxes.forEach((cube: any) => {
             cube.canDamage = false;
@@ -1030,7 +1053,7 @@ export default class Player {
       
       if (Phaser.Geom.Rectangle.Overlaps(lookAheadBounds, purpleBounds)) {
         cubesFound = true;
-        console.log('[LOOK-AHEAD] Manual detection found purple cube ahead');
+  
       }
     });
     
@@ -1059,20 +1082,24 @@ export default class Player {
         
         // Apply destruction effect
         if (purpleHitbox.body && purpleHitbox.body instanceof Phaser.Physics.Arcade.Body) {
+          // Move to falling group to prevent collision with player
+          (this.scene as any).pipeManager.purpleHitboxes.remove(purpleHitbox);
+          (this.scene as any).pipeManager.fallingPurpleHitboxes.add(purpleHitbox);
+          
           purpleHitbox.body.setAllowGravity(true);
           purpleHitbox.body.setGravityY(800);
           const randomX = Phaser.Math.Between(70, 110);
           const randomY = Phaser.Math.Between(-170, -130);
           purpleHitbox.body.setVelocity(randomX, randomY);
+          
+          // Start fading immediately when X velocity is applied
+          this.scene.tweens.add({
+            targets: purpleHitbox,
+            alpha: 0,
+            duration: PipeManager.PURPLE_CUBE_FADE_DURATION,
+            ease: 'Linear',
+          });
         }
-        
-        // Fade out
-        this.scene.tweens.add({
-          targets: purpleHitbox,
-          alpha: 0,
-          duration: PipeManager.PURPLE_CUBE_FADE_DURATION,
-          ease: 'Linear',
-        });
         
         // Trigger column collapse
         pipeManager.triggerFallForHitboxesBelow(purpleHitbox, false, false);
@@ -1094,12 +1121,9 @@ export default class Player {
       const playScene = this.scene as any;
       const playerXVelocity = playScene.PLAYER_X_VELOCITY || 100;
       
-      // Store the original Y velocity
-      const originalYVelocity = dashBody.velocity.y;
-      
-      // Set dash velocity (higher X for dash effect, preserve Y)
+      // Set dash velocity (higher X for dash effect, don't touch Y velocity)
       dashBody.setVelocityX(1000);
-      dashBody.setVelocityY(originalYVelocity);
+      // Don't set Y velocity - let gravity handle it naturally
       
       let current = { v: 1000 };
       this.dashTween = this.scene.tweens.add({
@@ -1109,12 +1133,12 @@ export default class Player {
         ease: 'Linear',
         onUpdate: () => {
           dashBody.setVelocityX(current.v);
-          dashBody.setVelocityY(originalYVelocity);
+          // Don't set Y velocity - let gravity handle it naturally
         },
         onComplete: () => {
           // Restore to the constant X velocity for chunk-based movement
           dashBody.setVelocityX(playerXVelocity);
-          dashBody.setVelocityY(originalYVelocity);
+          // Don't set Y velocity - let gravity handle it naturally
           this.isDashing = false;
           this.canFlap = true;
         }

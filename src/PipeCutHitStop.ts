@@ -7,11 +7,10 @@ interface PausedObject {
   moves?: boolean;
 }
 
-export default class HitStop {
+export default class PipeCutHitStop {
   private scene: Phaser.Scene;
   private pausedObjects: PausedObject[] = [];
   private isActive = false;
-  private pausedTimers: Phaser.Time.TimerEvent[] = [];
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -27,23 +26,13 @@ export default class HitStop {
     this.pausedObjects = this.pausedObjects.filter(entry => entry.obj !== obj);
   }
 
-  // Trigger hitstop for a duration in ms
-  trigger(duration: number, onEnd?: () => void) {
+  // Trigger hitstop for a duration in ms (default 50ms for pipe cutting feedback)
+  // This is completely independent of animation frames - triggered purely by collision
+  trigger(duration: number = 50, onEnd?: () => void) {
     if (this.isActive) return;
     this.isActive = true;
 
-    // Pause the player's attack hitbox timers if they exist
-    const player = (this.scene as any).player;
-    if (player) {
-      if (player.attackHitboxTimer && !player.attackHitboxTimer.paused) {
-        player.attackHitboxTimer.paused = true;
-        this.pausedTimers.push(player.attackHitboxTimer);
-      }
-      if (player.attackCompletionTimer && !player.attackCompletionTimer.paused) {
-        player.attackCompletionTimer.paused = true;
-        this.pausedTimers.push(player.attackCompletionTimer);
-      }
-    }
+    // No animation frame dependencies - this is purely collision-based feedback
 
     this.pausedObjects.forEach(entry => {
       const body = (entry.obj.body as Phaser.Physics.Arcade.Body | undefined);
@@ -55,8 +44,6 @@ export default class HitStop {
         
         const player = (this.scene as any).player;
         const isPlayerSprite = player && entry.obj === player.sprite;
-        
-
         
         body.setVelocity(0, 0);
         body.setGravity(0, 0);
@@ -72,8 +59,6 @@ export default class HitStop {
     });
 
     this.scene.time.delayedCall(duration, () => {
-
-      
       this.pausedObjects.forEach(entry => {
         const body = (entry.obj.body as Phaser.Physics.Arcade.Body | undefined);
         // Resume physics
@@ -81,8 +66,6 @@ export default class HitStop {
           // For chunk-based system: preserve constant rightward velocity for player
           const player = (this.scene as any).player;
           const isPlayerSprite = player && entry.obj === player.sprite;
-          
-
           
           if (isPlayerSprite) {
             // Restore Y velocity but maintain constant X velocity for chunk-based movement
@@ -103,11 +86,7 @@ export default class HitStop {
         }
       });
       
-      // Resume any paused timers
-      this.pausedTimers.forEach(timer => {
-        timer.paused = false;
-      });
-      this.pausedTimers = [];
+      // No timers to resume since this is frame-independent
       this.isActive = false;
       
       // Force-set player X velocity one more time to ensure it's restored
@@ -119,10 +98,7 @@ export default class HitStop {
       }
       
       if (onEnd) onEnd();
-      // Always trigger dash at the end of hitstop if player exists and has startDash
-      if (player && typeof player.startDash === 'function') {
-        player.startDash();
-      }
+      // NO dash trigger - this is just for feedback
     });
   }
 } 

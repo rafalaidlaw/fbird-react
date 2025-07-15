@@ -1,8 +1,9 @@
 import Phaser from "phaser";
+import { CURRENT_PIPES_TEMPLATE } from '../templates/currentPipesTemplate';
 
 // Chunk template interfaces
 interface PipeConfig {
-  type: 'upper' | 'lower';
+  type: 'upper' | 'lower' | 'ground';
   x: number; // Relative to chunk start
   y: number;
   hasPurpleCubes?: boolean;
@@ -27,10 +28,12 @@ export default class ChunkManager {
   private scene: Phaser.Scene;
   private config: any;
   private currentChunkIndex: number = 0;
-  private activeChunks: any[] = [];
+  private lastSpawnedX: number = 0; // Track the actual last spawned X position
+  private activeChunks: any[] = []; // Track spawned chunks for recycling
   private chunkWidth: number = 800; // Width of each chunk
   private chunkSpacing: number = 1000; // Distance between chunk start positions
   private chunkTemplates: ChunkTemplate[] = [];
+  private lastSpawnTime: number = 0; // Track last spawn time to prevent duplicates
 
   constructor(scene: Phaser.Scene, config: any) {
     this.scene = scene;
@@ -39,52 +42,9 @@ export default class ChunkManager {
   }
 
   private initializeChunkTemplates(): void {
-    // Basic chunk - simple pipes with one enemy
-    const basicChunk: ChunkTemplate = {
-      id: 'basic',
-      width: 800,
-      difficulty: 1,
-      pipes: [
-        { type: 'upper', x: 200, y: 300 },
-        { type: 'lower', x: 200, y: 500 }
-      ],
-      enemies: [
-        { x: 250, y: 450, type: 'basic' }
-      ]
-    };
+    // Use our new template for testing
+    this.chunkTemplates = [CURRENT_PIPES_TEMPLATE];
 
-    // Purple chunk - pipes with purple cubes and two enemies
-    const purpleChunk: ChunkTemplate = {
-      id: 'purple',
-      width: 800,
-      difficulty: 2,
-      pipes: [
-        { type: 'upper', x: 200, y: 300, hasPurpleCubes: true },
-        { type: 'lower', x: 200, y: 500 }
-      ],
-      enemies: [
-        { x: 250, y: 450, type: 'basic' },
-        { x: 550, y: 450, type: 'basic' }
-      ]
-    };
-
-    // Maroon chunk - pipes with maroon cubes and three enemies
-    const maroonChunk: ChunkTemplate = {
-      id: 'maroon',
-      width: 800,
-      difficulty: 3,
-      pipes: [
-        { type: 'upper', x: 200, y: 300 },
-        { type: 'lower', x: 200, y: 500, hasMaroonCubes: true }
-      ],
-      enemies: [
-        { x: 250, y: 450, type: 'basic' },
-        { x: 400, y: 450, type: 'basic' },
-        { x: 550, y: 450, type: 'basic' }
-      ]
-    };
-
-    this.chunkTemplates = [basicChunk, purpleChunk, maroonChunk];
   }
 
   // Get the current chunk index based on player position
@@ -92,10 +52,21 @@ export default class ChunkManager {
     return Math.floor(playerX / this.chunkSpacing);
   }
 
-  // Check if we need to spawn a new chunk
+  // Check if we need to spawn a new chunk - spawn 500 pixels ahead of player
   shouldSpawnNewChunk(playerX: number): boolean {
-    const currentChunkIndex = this.getCurrentChunkIndex(playerX);
-    return currentChunkIndex > this.currentChunkIndex;
+    // Check if we need to spawn a new chunk 500 pixels ahead
+    const spawnDistance = 500;
+    const minDistanceBetweenChunks = 800; // Minimum distance between chunk spawns
+    const currentTime = Date.now();
+    const timeSinceLastSpawn = currentTime - this.lastSpawnTime;
+    const minSpawnCooldown = 100; // Minimum 100ms between spawns
+    
+    const shouldSpawn = playerX + spawnDistance > this.lastSpawnedX + minDistanceBetweenChunks && 
+                       timeSinceLastSpawn > minSpawnCooldown;
+    if (shouldSpawn) {
+      console.log(`[CHUNK SPAWN] Player at ${playerX}, spawning chunk at ${playerX + spawnDistance}`);
+    }
+    return shouldSpawn;
   }
 
   // Get the X position for a specific chunk
@@ -133,27 +104,72 @@ export default class ChunkManager {
     const spawnedPipes: any[] = [];
     const spawnedEnemies: any[] = [];
 
-    console.log(`[CHUNK SPAWN] Spawning chunk ${chunkIndex} (${template.id}) at X: ${chunkX}`);
-
-    // For now, just log what would be spawned
-    // We'll integrate with PipeManager and enemy creation later
+    // Create all upper and lower pipes from the template (skip ground pipes)
     template.pipes.forEach(pipeConfig => {
       const absoluteX = chunkX + pipeConfig.x;
       const absoluteY = pipeConfig.y;
-      console.log(`[CHUNK SPAWN] Would create ${pipeConfig.type} pipe at (${absoluteX}, ${absoluteY})`);
-      spawnedPipes.push({
-        type: pipeConfig.type,
-        x: absoluteX,
-        y: absoluteY,
-        hasPurpleCubes: pipeConfig.hasPurpleCubes,
-        hasMaroonCubes: pipeConfig.hasMaroonCubes
-      });
+      
+      // Access the pipeManager from the scene
+      const pipeManager = (this.scene as any).pipeManager;
+      if (pipeManager && pipeConfig.type === 'upper') {
+        console.log(`[CHUNK TEST] Creating upper pipe at (${absoluteX}, ${absoluteY}) from template`);
+        const createdPipe = pipeManager.createUpperPipe(absoluteX, absoluteY);
+        spawnedPipes.push(createdPipe);
+      } else if (pipeManager && pipeConfig.type === 'lower') {
+        console.log(`[CHUNK TEST] Creating lower pipe at (${absoluteX}, ${absoluteY}) from template`);
+        const createdPipe = pipeManager.createLowerPipe(absoluteX, absoluteY);
+        spawnedPipes.push(createdPipe);
+      } else if (pipeConfig.type === 'ground') {
+        console.log(`[CHUNK TEST] Skipping ground pipe at (${absoluteX}, ${absoluteY}) to avoid ground plane conflicts`);
+      }
     });
 
     template.enemies.forEach(enemyConfig => {
       const absoluteX = chunkX + enemyConfig.x;
       const absoluteY = enemyConfig.y;
-      console.log(`[CHUNK SPAWN] Would create ${enemyConfig.type} enemy at (${absoluteX}, ${absoluteY})`);
+  
+      spawnedEnemies.push({
+        type: enemyConfig.type,
+        x: absoluteX,
+        y: absoluteY
+      });
+    });
+
+    return { pipes: spawnedPipes, enemies: spawnedEnemies };
+  }
+
+  // Spawn a chunk at a specific X position (for 500px ahead spawning)
+  spawnChunkAtPosition(chunkX: number): { pipes: any[], enemies: any[] } | null {
+    const template = this.getChunkTemplate(this.currentChunkIndex);
+    if (!template) return null;
+
+    const spawnedPipes: any[] = [];
+    const spawnedEnemies: any[] = [];
+
+    // Create all upper and lower pipes from the template (skip ground pipes)
+    template.pipes.forEach(pipeConfig => {
+      const absoluteX = chunkX + pipeConfig.x;
+      const absoluteY = pipeConfig.y;
+      
+      // Access the pipeManager from the scene
+      const pipeManager = (this.scene as any).pipeManager;
+      if (pipeManager && pipeConfig.type === 'upper') {
+        console.log(`[CHUNK TEST] Creating upper pipe at (${absoluteX}, ${absoluteY}) from template`);
+        const createdPipe = pipeManager.createUpperPipe(absoluteX, absoluteY);
+        spawnedPipes.push(createdPipe);
+      } else if (pipeManager && pipeConfig.type === 'lower') {
+        console.log(`[CHUNK TEST] Creating lower pipe at (${absoluteX}, ${absoluteY}) from template`);
+        const createdPipe = pipeManager.createLowerPipe(absoluteX, absoluteY);
+        spawnedPipes.push(createdPipe);
+      } else if (pipeConfig.type === 'ground') {
+        console.log(`[CHUNK TEST] Skipping ground pipe at (${absoluteX}, ${absoluteY}) to avoid ground plane conflicts`);
+      }
+    });
+
+    template.enemies.forEach(enemyConfig => {
+      const absoluteX = chunkX + enemyConfig.x;
+      const absoluteY = enemyConfig.y;
+  
       spawnedEnemies.push({
         type: enemyConfig.type,
         x: absoluteX,
@@ -167,16 +183,60 @@ export default class ChunkManager {
   // Check if we need to spawn a new chunk and spawn it
   checkAndSpawnChunk(playerX: number): boolean {
     if (this.shouldSpawnNewChunk(playerX)) {
-      const currentChunkIndex = this.getCurrentChunkIndex(playerX);
-      this.currentChunkIndex = currentChunkIndex;
+      // Spawn chunk 500 pixels ahead of player
+      const spawnDistance = 500;
+      const chunkX = playerX + spawnDistance;
+      this.currentChunkIndex++;
+      this.lastSpawnedX = chunkX; // Update the last spawned position
+      this.lastSpawnTime = Date.now(); // Update spawn time
       
-      // Spawn the chunk
-      const spawnResult = this.spawnChunk(currentChunkIndex);
+      // Spawn the chunk at the calculated position
+      const spawnResult = this.spawnChunkAtPosition(chunkX);
       if (spawnResult) {
-        console.log(`[CHUNK SPAWN] Successfully spawned chunk ${currentChunkIndex} with ${spawnResult.pipes.length} pipes and ${spawnResult.enemies.length} enemies`);
+        // Track the spawned chunk for recycling
+        this.activeChunks.push({
+          x: chunkX,
+          pipes: spawnResult.pipes,
+          enemies: spawnResult.enemies,
+          templateId: this.getChunkTemplate(this.currentChunkIndex - 1)?.id || 'unknown'
+        });
         return true;
       }
     }
     return false;
+  }
+
+  // Recycle chunks that are far behind the player
+  recycleChunks(playerX: number, recycleDistance: number = 1000): void {
+    const chunksToRemove: any[] = [];
+    
+    this.activeChunks.forEach(chunk => {
+      if (chunk.x < playerX - recycleDistance) {
+        chunksToRemove.push(chunk);
+      }
+    });
+    
+    chunksToRemove.forEach(chunk => {
+      console.log(`[CHUNK RECYCLE] Recycling chunk at X: ${chunk.x} (template: ${chunk.templateId})`);
+      
+      // Clean up pipes (they should be handled by StaticPipeManager.recyclePipes)
+      // Clean up enemies (if we add them later)
+      
+      // Remove from active chunks
+      const index = this.activeChunks.indexOf(chunk);
+      if (index > -1) {
+        this.activeChunks.splice(index, 1);
+      }
+    });
+    
+    if (chunksToRemove.length > 0) {
+      console.log(`[CHUNK RECYCLE] Recycled ${chunksToRemove.length} chunks behind player at X: ${playerX}`);
+    }
+  }
+
+  // Reset chunk index for testing (temporary)
+  resetChunkIndex(): void {
+    this.currentChunkIndex = 0;
+
   }
 } 

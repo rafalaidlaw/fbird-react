@@ -3,6 +3,7 @@ import UIManager from "./UIManager";
 import Player from "./Player";
 import StaticPipeManager from "./StaticPipeManager";
 import HitStop from "../HitStop";
+import PipeCutHitStop from "../PipeCutHitStop";
 import ChunkManager from "./ChunkManager";
 
 const PIPES_TO_RENDER = 4;
@@ -19,7 +20,7 @@ interface Difficulties {
 }
 
 const FALL_GRAVITY_MULTIPLIER = 2.5;
-const PLAYER_X_VELOCITY = 200; // Constant rightward velocity for chunk-based movement
+const PLAYER_X_VELOCITY = 250; // Constant rightward velocity for chunk-based movement
 
 class PlayScene extends BaseScene {
   private player!: Player;
@@ -54,6 +55,7 @@ class PlayScene extends BaseScene {
   private timedEvent?: Phaser.Time.TimerEvent;
   private uiManager!: UIManager;
   public hitStop!: HitStop;
+  public pipeCutHitStop!: PipeCutHitStop;
   private debugYText!: Phaser.GameObjects.Text;
   private debugXText!: Phaser.GameObjects.Text;
   private debugXVelocityText!: Phaser.GameObjects.Text;
@@ -74,6 +76,7 @@ class PlayScene extends BaseScene {
     this.isGameOver = false;
     this.currentDifficulty = "easy";
     this.hitStop = new HitStop(this); // Instantiate HitStop
+    this.pipeCutHitStop = new PipeCutHitStop(this); // Instantiate PipeCutHitStop for pipe cutting feedback
     
     // Create background first
     this.createBG();
@@ -89,30 +92,23 @@ class PlayScene extends BaseScene {
     this.createGroundPlane();
     // Register the player physics object for hitstop
     this.hitStop.register(this.player.sprite);
+    // Register the player physics object for pipe cutting feedback
+    this.pipeCutHitStop.register(this.player.sprite);
     
     // Setup camera to follow the player
     this.cameras.main.startFollow(this.player.sprite);
-    this.cameras.main.setFollowOffset(-this.config.width / 3, 0); // Position Kilboy about 1/6th from left
+    this.cameras.main.setFollowOffset(-this.config.width / 2, 0); // Position Kilboy about 1/6th from left
     this.cameras.main.setLerp(0.1, 0.1); // Smooth camera movement
     this.cameras.main.setDeadzone(75, 40); // Larger dead zone for more movement freedom
     
     // Set camera bounds to allow full vertical movement
     // Sky plane is at Y=-1000, ground plane is at Y=1000
-    // Camera should be able to follow Kilboy anywhere between these bounds
-    const cameraUpperBound = -1200 - (this.config.height / 2); // Sky Y - sky height - half screen height
+    // Camera should stop 50 pixels up from the bottom of the sky plane
+    const cameraUpperBound = -900; // 50 pixels above sky plane bottom (-1000 + 50 = -1050)
     const cameraLowerBound = 1310 - (this.config.height / 2); // Ground Y + visible pixels - half screen height
     this.cameras.main.setBounds(0, cameraUpperBound, 1000000, cameraLowerBound - cameraUpperBound); // Full vertical range
     
     this.pipeManager = new StaticPipeManager(this, this.config, this.difficulties, this.currentDifficulty);
-    // Create initial static pipes for testing
-    this.pipeManager.createPipePair(600, 400, 200);
-    this.pipeManager.createPipePair(800, 350, 180);
-    this.pipeManager.createPipePair(1000, 450, 220);
-    
-    // Create ground pipes that come up from the ground plane
-    this.pipeManager.createGroundPipe(1200, 150); // Short ground pipe
-    this.pipeManager.createGroundPipe(1400, 250); // Medium ground pipe
-    this.pipeManager.createGroundPipe(1600, 350); // Tall ground pipe
     
     // Initialize ChunkManager (for future use)
     this.chunkManager = new ChunkManager(this, this.config);
@@ -137,6 +133,8 @@ class PlayScene extends BaseScene {
     this.checkGameStatus();
     // Recycle static pipes that are far behind the player
     this.pipeManager.recyclePipes(this.player.sprite.x, 1000);
+    // Recycle chunks that are far behind the player
+    this.chunkManager.recycleChunks(this.player.sprite.x, 1000);
     this.checkGreenHitboxOverlap();
     this.checkBlueHitboxOverlap();
     this.uiManager.updateHealthUI(this.player.getHealth());
@@ -169,22 +167,16 @@ class PlayScene extends BaseScene {
     if (this.player && this.player.sprite) {
       const chunkInfo = this.chunkManager.getChunkInfo(this.player.sprite.x);
       const templateInfo = this.chunkManager.getChunkTemplateInfo(chunkInfo.currentIndex);
-      console.log(`[CHUNK DEBUG] Player X: ${Math.round(this.player.sprite.x)}, Chunk: ${chunkInfo.currentIndex}, Chunk X: ${chunkInfo.chunkX}, Template: ${templateInfo?.templateId || 'none'}, Difficulty: ${templateInfo?.difficulty || 0}`);
+
       
           // Test chunk spawning (temporary)
     this.chunkManager.checkAndSpawnChunk(this.player.sprite.x);
     
-    // Test static pipe creation (temporary - only once)
-    if (this.player.sprite.x > 50 && !(this as any).staticPipesTested) {
-      console.log('[TEST] Creating additional static pipes');
-      this.pipeManager.createPipePair(1200, 380, 190);
-      this.pipeManager.createPipePair(1400, 420, 210);
-      (this as any).staticPipesTested = true;
-    }
+
     
     // Debug: Show when we're getting close to the test threshold
     if (this.player.sprite.x > 30 && this.player.sprite.x <= 50) {
-      console.log(`[TEST DEBUG] Player X: ${Math.round(this.player.sprite.x)}, approaching static pipe test threshold`);
+
     }
     }
     if (this.isGameOver) {
@@ -204,13 +196,13 @@ class PlayScene extends BaseScene {
         this.player.sprite.setTexture("kilboy");
       } else if (this.player.isHoldingSwingFrameActive) {
         // Debug: PlayScene tried to override but swing frame is active
-        console.log('[PLAYSCE] Preserving swing texture - isHoldingSwingFrameActive:', this.player.isHoldingSwingFrameActive);
+
       }
       if (!this.isGameOver && !this.player.isHoldingSwingFrameActive) {
         this.jumpCount = 0;
         this.updateJumpRectangles();
       } else if (this.player.isHoldingSwingFrameActive) {
-        console.log('[PLAYSCE] Preventing jumpCount reset during swing frame hold');
+
       }
     }
     // Sync blueBottomHitbox to follow blueHitbox every frame
@@ -231,7 +223,8 @@ class PlayScene extends BaseScene {
       this.player.sprite,
       ...this.pipeManager.purpleHitboxes.getChildren(),
       ...this.pipeManager.maroonHitboxes.getChildren(),
-      ...this.pipeManager.fallingMaroonHitboxes.getChildren()
+      ...this.pipeManager.fallingMaroonHitboxes.getChildren(),
+      ...this.pipeManager.fallingPurpleHitboxes.getChildren()
     ];
     gravityObjects.forEach(obj => {
       if (obj.body && obj.body instanceof Phaser.Physics.Arcade.Body) {
@@ -248,6 +241,37 @@ class PlayScene extends BaseScene {
       }
     });
     // --- End Gravity Multiplier System ---
+    
+    // Check purple hitboxes for X velocity and apply gravity/fading (but don't move to falling group yet)
+    this.pipeManager.purpleHitboxes.getChildren().forEach((purpleHitbox: any) => {
+      if (purpleHitbox.body && purpleHitbox.body instanceof Phaser.Physics.Arcade.Body) {
+        const body = purpleHitbox.body as Phaser.Physics.Arcade.Body;
+        
+        // If purple hitbox has significant velocity, apply gravity and fading
+        if (Math.abs(body.velocity.x) > 5) { // Higher threshold to avoid moving stationary hitboxes
+          // Enable gravity if not already enabled
+          if (!body.allowGravity) {
+            body.setAllowGravity(true);
+            body.setGravityY(800);
+          }
+          
+          // If Y velocity is zero, apply downward velocity to make it fall
+          if (Math.abs(body.velocity.y) < 0.1) {
+            body.setVelocityY(50); // Small downward velocity to start falling
+          }
+          
+          // Start fading if not already fading
+          if (purpleHitbox.alpha > 0) {
+            this.tweens.add({
+              targets: purpleHitbox,
+              alpha: 0,
+              duration: StaticPipeManager.PURPLE_CUBE_FADE_DURATION,
+              ease: 'Linear',
+            });
+          }
+        }
+      }
+    });
     
     // Update ground plane segments - recycle off-screen segments
     this.updateGroundSegments();
@@ -367,12 +391,18 @@ class PlayScene extends BaseScene {
   }
 
   private createGroundPlane(): void {
+    // --- Fix: Destroy and clear old ground/sky segments, reset world bounds ---
+    this.groundPlaneSegments.forEach(segment => segment.destroy());
+    this.groundPlaneSegments = [];
+    this.skyPlaneSegments.forEach(segment => segment.destroy());
+    this.skyPlaneSegments = [];
+    this.physics.world.setBounds(0, 0, this.config.width, this.config.height);
+    // --- End fix ---
+
     // Create segmented ground plane system
     this.createInitialGroundSegments();
-    
     // Create segmented sky plane system
     this.createInitialSkySegments();
-    
     // Update world bounds to include both planes
     // The ground plane is at Y=1000, sky plane at Y=-1000
     const groundHeight = 200;
@@ -543,9 +573,18 @@ class PlayScene extends BaseScene {
         this.pipeManager.purpleHitboxes,
         (obj1: any, obj2: any) => {
           if (obj1 instanceof Phaser.GameObjects.GameObject && obj2 instanceof Phaser.GameObjects.GameObject) {
+            // Check if Kilboy is in swing state (actively attacking)
+            const isInAttackSwing = this.player.sprite.anims.isPlaying && this.player.sprite.anims.currentAnim?.key === "kilboy_swing_anim";
+            const isHoldingSwingFrame = this.player.isHoldingSwingFrameActive;
+            const hasActiveAttackHitbox = !!this.player["attackHitbox"];
+            
+            // Only trigger pipe cutting feedback when Kilboy is actively swinging/attacking
+            if (isInAttackSwing || isHoldingSwingFrame || hasActiveAttackHitbox) {
+              this.pipeCutHitStop.trigger();
+            }
+            
             const shouldTakeDamage = this.player.handlePurpleHitboxCollision(obj2, this.pipeManager, this.isGameOver);
             // Prevent damage if player is in attack swing animation
-            const isInAttackSwing = this.player.sprite.anims.isPlaying && this.player.sprite.anims.currentAnim?.key === "kilboy_swing_anim";
             if (shouldTakeDamage && !this.player.isInvincible && !isInAttackSwing) {
               if (this.player.takeHit()) {
                 this.gameOver();
@@ -565,9 +604,18 @@ class PlayScene extends BaseScene {
         this.pipeManager.maroonHitboxes,
         (obj1: any, obj2: any) => {
           if (obj1 instanceof Phaser.GameObjects.GameObject && obj2 instanceof Phaser.GameObjects.GameObject) {
+            // Check if Kilboy is in swing state (actively attacking)
+            const isInAttackSwing = this.player.sprite.anims.isPlaying && this.player.sprite.anims.currentAnim?.key === "kilboy_swing_anim";
+            const isHoldingSwingFrame = this.player.isHoldingSwingFrameActive;
+            const hasActiveAttackHitbox = !!this.player["attackHitbox"];
+            
+            // Only trigger pipe cutting feedback when Kilboy is actively swinging/attacking
+            if (isInAttackSwing || isHoldingSwingFrame || hasActiveAttackHitbox) {
+              this.pipeCutHitStop.trigger();
+            }
+            
             const shouldTakeDamage = this.player.handleMaroonHitboxCollision(obj2, this.pipeManager, this.isGameOver);
             // Prevent damage if player is in attack swing animation
-            const isInAttackSwing = this.player.sprite.anims.isPlaying && this.player.sprite.anims.currentAnim?.key === "kilboy_swing_anim";
             if (shouldTakeDamage && !this.player.isInvincible && !isInAttackSwing) {
               if (this.player.takeHit()) {
                 this.gameOver();
@@ -590,7 +638,7 @@ class PlayScene extends BaseScene {
         () => {
           // Cube detected ahead
           this.player.cubesDetectedAhead = true;
-          console.log('[LOOK-AHEAD] Purple cube detected ahead');
+  
         },
         undefined,
         this
@@ -605,11 +653,11 @@ class PlayScene extends BaseScene {
           if ((pipeContainer as any).blueHitbox) {
             // Generate purple cubes for upper pipe
             this.pipeManager.generatePurpleCubesForPipe(pipeContainer);
-            console.log('[LOOK-AHEAD] Triggered purple cube generation for upper pipe');
+    
           } else if ((pipeContainer as any).redHitbox) {
             // Generate maroon cubes for lower pipe
             this.pipeManager.generateMaroonCubesForPipe(pipeContainer);
-            console.log('[LOOK-AHEAD] Triggered maroon cube generation for lower pipe');
+    
           }
         },
         undefined,
@@ -782,7 +830,7 @@ class PlayScene extends BaseScene {
       if (!this.player.isHoldingSwingFrameActive) {
         this.player.sprite.setTexture("kilboy_run");
       } else {
-        console.log('[PLAYSCE] Green hitbox contact - preserving swing texture during frame hold');
+
       }
       // Set Kilboy's y position to a constant offset above the green box
       if (firstOverlappingGreen) {
