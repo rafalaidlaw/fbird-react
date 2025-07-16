@@ -740,6 +740,9 @@ export default class Player {
 
   // Handles collision with a maroon hitbox (lower pipe cubes)
   public handleMaroonHitboxCollision(maroonHitbox: Phaser.GameObjects.GameObject, pipeManager: any, isGameOver: boolean): boolean {
+    // Check opacity - if cube is fading (alpha < 1), don't allow collision
+    if ((maroonHitbox as any).alpha < 1) return false;
+    
     // Always trigger fall for hitboxes above on any maroon cube contact (including dash)
     // This must happen BEFORE canDamage check so dash collisions still trigger column collapse
     pipeManager.triggerFallForHitboxesAbove(maroonHitbox as Phaser.GameObjects.Rectangle, isGameOver, this.isDashing);

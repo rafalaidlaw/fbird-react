@@ -31,6 +31,8 @@ export const CURRENT_PIPES_TEMPLATE: ChunkTemplate = {
   pipes: [
     // Just one upper pipe for testing
     { type: 'upper', x: 200, y: StaticPipeManager.PIPE_Y_POSITION },  // Uses configurable Y position
+    // Add a lower pipe for testing
+    { type: 'lower', x: 200, y: StaticPipeManager.PIPE_Y_POSITION + 200 },  // Lower pipe positioned below upper pipe
   ],
   enemies: [
     // No enemies currently (enemy system is disabled)
@@ -45,6 +47,8 @@ export const SMALL_CHUNK_TEMPLATES: ChunkTemplate[] = [
     difficulty: 1,
     pipes: [
       { type: 'upper', x: 200, y: StaticPipeManager.PIPE_Y_POSITION },  // Uses configurable Y position
+      // Add a lower pipe for testing
+      { type: 'lower', x: 200, y: StaticPipeManager.PIPE_Y_POSITION + 200 },  // Lower pipe positioned below upper pipe
     ],
     enemies: []
   }

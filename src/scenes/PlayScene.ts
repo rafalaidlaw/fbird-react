@@ -633,15 +633,24 @@ class PlayScene extends BaseScene {
         this.player.lookAheadHitbox,
         this.pipeManager.pipes,
         (lookAhead: any, pipeContainer: any) => {
+          console.log("[PLAY SCENE] Look ahead hitbox overlap detected");
+          console.log("[PLAY SCENE] pipeContainer:", pipeContainer);
+          console.log("[PLAY SCENE] blueHitbox:", (pipeContainer as any).blueHitbox);
+          console.log("[PLAY SCENE] redHitbox:", (pipeContainer as any).redHitbox);
+          
           // Check if this is an upper pipe (has blueHitbox) or lower pipe (has redHitbox)
           if ((pipeContainer as any).blueHitbox) {
+            console.log("[PLAY SCENE] Detected upper pipe - generating purple cubes");
             // Generate purple cubes for upper pipe
             this.pipeManager.generatePurpleCubesForPipe(pipeContainer);
     
           } else if ((pipeContainer as any).redHitbox) {
+            console.log("[PLAY SCENE] Detected lower pipe - generating maroon cubes");
             // Generate maroon cubes for lower pipe
             this.pipeManager.generateMaroonCubesForPipe(pipeContainer);
     
+          } else {
+            console.log("[PLAY SCENE] Unknown pipe type - neither blueHitbox nor redHitbox found");
           }
         },
         undefined,
