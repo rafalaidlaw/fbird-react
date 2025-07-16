@@ -22,6 +22,16 @@ export default class StaticPipeManager {
   
   // Configurable fade duration for maroon cubes (in milliseconds)
   public static readonly MAROON_CUBE_FADE_DURATION = 1000;
+  
+  // Configurable pipe height - this controls the entire pipe size
+  private static readonly PIPE_HEIGHT = 1200; // Total height from sky to blue hitbox
+  private static readonly BLUE_HITBOX_HEIGHT = 32; // Height of blue hitbox area
+  
+  // Configurable pipe Y position - controls where pipes are placed vertically
+  public static readonly PIPE_Y_POSITION = 400; // Y position for pipe placement
+  
+  // Configurable container position - controls where the pipe container is positioned
+  public static readonly CONTAINER_Y_POSITION = -800; // Y position for pipe container (sky level)
 
   constructor(scene: Phaser.Scene, config: any, difficulties: any, currentDifficulty: string) {
     this.scene = scene;
@@ -47,22 +57,19 @@ export default class StaticPipeManager {
 
     
     // Create upper pipe as a container with orange rectangle - extend to sky plane
-    const skyY = -1000; // Sky plane Y position
-    const upperPipeHeight = y - skyY; // Height needed to reach sky plane from pipe position
     const upperPipeContainer = this.scene.add.container(x, y);
     // Add orange rectangle to container - extend to sky plane
-    const upperOrangeRect = this.scene.add.rectangle(0, 0, blueWidth, upperPipeHeight, 0xff8c00, 0); // alpha 0
+    const upperOrangeRect = this.scene.add.rectangle(0, 0, blueWidth, StaticPipeManager.PIPE_HEIGHT, 0xff8c00, 0); // alpha 0
     upperOrangeRect.setOrigin(0, 0); // Change to top-left origin so it extends downward
-    upperOrangeRect.setPosition(0, -upperPipeHeight); // Position it to extend from pipe position down to sky
+    upperOrangeRect.setPosition(0, -StaticPipeManager.PIPE_HEIGHT); // Position it to extend from pipe position down to sky
     upperPipeContainer.add(upperOrangeRect);
     // Add blue rectangle as child of the container
     const blueRect = this.scene.add.rectangle(0, 0, blueWidth, 32, 0x0000ff, 0);
     blueRect.setOrigin(0, 0);
+    blueRect.setPosition(0, 0); // Position at bottom of pipe area (pipe position)
     upperPipeContainer.add(blueRect);
-    // Create separate hitbox for blue rectangle (positioned at bottom of purple cube column)
-    const purpleColumnHeight = 23 * hitboxWidth; // 23 rows × 16px each = 368px
-    const purpleColumnBottom = -288 + purpleColumnHeight; // -288 + 368 = 80
-    const blueHitbox = this.scene.add.rectangle(x - 2, y + purpleColumnBottom, blueWidth, 16, 0x00ffff, 1);
+    // Create separate hitbox for blue rectangle (positioned at pipe position)
+    const blueHitbox = this.scene.add.rectangle(x - 2, y, blueWidth, 32, 0x00ffff, 1);
     blueHitbox.setOrigin(0, 0);
     this.scene.physics.add.existing(blueHitbox);
     (blueHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
@@ -71,22 +78,22 @@ export default class StaticPipeManager {
     // Initialize empty purple hitboxes array (will be populated on-demand)
     (upperPipeContainer as any).purpleHitboxes = [];
     
-    // Create placeholder orange rectangle covering the purple cube area
-    const purpleAreaWidth = blueWidth; // Same as blue hitbox width
-    const purpleAreaHeight = 23 * hitboxWidth; // 23 rows × 16px = 368px
-    const purpleAreaX = -2; // Same X offset as purple cubes
-    const purpleAreaY = -288;
-    const placeholderRect = this.scene.add.rectangle(purpleAreaX, purpleAreaY, purpleAreaWidth, purpleAreaHeight, 0xff8c00, 1);
+    // Create placeholder orange rectangle covering the entire pipe height
+    const placeholderWidth = blueWidth; // Same as pipe width
+    const placeholderHeight = StaticPipeManager.PIPE_HEIGHT; // Full pipe height
+    const placeholderX = -2; // Same X offset as purple cubes
+    const placeholderY = -StaticPipeManager.PIPE_HEIGHT; // Start from sky (top of pipe)
+    const placeholderRect = this.scene.add.rectangle(placeholderX, placeholderY, placeholderWidth, placeholderHeight, 0xff8c00, 1);
     placeholderRect.setOrigin(0, 0);
     upperPipeContainer.add(placeholderRect);
     (upperPipeContainer as any).placeholderRect = placeholderRect;
     this.scene.physics.add.existing(upperPipeContainer);
     (upperPipeContainer.body as Phaser.Physics.Arcade.Body).setImmovable(true);
-    // Calculate total height: pipe extends from sky plane (Y=-1000) to pipe position (Y=y)
-    // Total span: from -upperPipeHeight to +96 (blue hitbox)
-    const totalContainerHeight = upperPipeHeight + 96; // pipe height + blue hitbox area
+    // Calculate total height: pipe extends from sky to pipe position
+    // Total span: from -PIPE_HEIGHT to +BLUE_HITBOX_HEIGHT
+    const totalContainerHeight = StaticPipeManager.PIPE_HEIGHT + StaticPipeManager.BLUE_HITBOX_HEIGHT; // pipe height + blue hitbox area
     (upperPipeContainer.body as Phaser.Physics.Arcade.Body).setSize(blueWidth, totalContainerHeight);
-    (upperPipeContainer.body as Phaser.Physics.Arcade.Body).setOffset(0, -upperPipeHeight);
+    (upperPipeContainer.body as Phaser.Physics.Arcade.Body).setOffset(0, -StaticPipeManager.PIPE_HEIGHT); // Offset to start from sky
     this.pipes.add(upperPipeContainer as any);
     
     (upperPipeContainer as any).blueHitbox = blueHitbox;
@@ -185,9 +192,9 @@ export default class StaticPipeManager {
     
     // Create placeholder orange rectangle covering the purple cube area
     const purpleAreaWidth = blueWidth; // Same as blue hitbox width
-    const purpleAreaHeight = 23 * hitboxWidth; // 23 rows × 16px = 368px
+    const purpleAreaHeight = upperPipeHeight - 96; // Dynamic height minus blue hitbox area
     const purpleAreaX = -2; // Same X offset as purple cubes
-    const purpleAreaY = -288;
+    const purpleAreaY = -upperPipeHeight + 96; // Start from top of pipe, below blue hitbox area
     const placeholderRect = this.scene.add.rectangle(purpleAreaX, purpleAreaY, purpleAreaWidth, purpleAreaHeight, 0xff8c00, 1);
     placeholderRect.setOrigin(0, 0);
     upperPipeContainer.add(placeholderRect);
@@ -296,7 +303,6 @@ export default class StaticPipeManager {
     // Safety check: only generate purple cubes for upper pipe containers
     // Upper pipes have blueHitbox, lower pipes have redHitbox
     if (!(pipeContainer as any).blueHitbox) {
-
       return; // This is a lower pipe, skip
     }
 
@@ -316,19 +322,22 @@ export default class StaticPipeManager {
       (pipeContainer as any).placeholderRect = undefined;
     }
     
-    // Create grid of colored hitboxes for this pipe (numColumns across, 23 down)
-    const pipeHitboxes: Phaser.GameObjects.Rectangle[] = [];
-    const maxAllowedY = -288 + (22 * hitboxWidth); // Last row should be at Y = 64
+    // Calculate dynamic height for purple cubes based on unified pipe height
+    const purpleCubeAreaHeight = StaticPipeManager.PIPE_HEIGHT; // Fill entire pipe height
+    const numRows = Math.floor(purpleCubeAreaHeight / hitboxWidth);
     
-    for (let row = 0; row < 23; row++) {
+    // Create grid of colored hitboxes for this pipe (numColumns across, dynamic rows)
+    const pipeHitboxes: Phaser.GameObjects.Rectangle[] = [];
+    
+    for (let row = 0; row < numRows; row++) {
       for (let col = 0; col < numColumns; col++) {
-        // Set container-relative position with bounds checking
+        // Set container-relative position to match placeholder rectangle
         const exactX = (col * hitboxWidth) - 2;
-        const exactY = -288 + (row * hitboxWidth);
+        const exactY = -StaticPipeManager.PIPE_HEIGHT + (row * hitboxWidth); // Start from sky (top of pipe)
         
-        // Safety check: ensure purple cubes don't extend below the intended area
-        if (exactY > maxAllowedY) {
-          console.warn(`[STATIC PIPE MANAGER] Skipping purple cube at row ${row} - would exceed bounds (Y: ${exactY} > ${maxAllowedY})`);
+        // Safety check: ensure purple cubes don't extend beyond pipe bounds
+        if (exactY + hitboxWidth > 0) { // Stop at pipe position (bottom of pipe)
+          console.warn(`[STATIC PIPE MANAGER] Skipping purple cube at row ${row} - would exceed pipe bounds (Y: ${exactY} > 0)`);
           continue;
         }
         

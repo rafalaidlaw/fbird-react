@@ -566,24 +566,16 @@ class PlayScene extends BaseScene {
         this
       );
     }
-    // Sprite collides with purple boxes
+    // Sprite collides with purple boxes (for damage)
     if (this.player && this.pipeManager.purpleHitboxes) {
       this.physics.add.collider(
         this.player.sprite,
         this.pipeManager.purpleHitboxes,
         (obj1: any, obj2: any) => {
           if (obj1 instanceof Phaser.GameObjects.GameObject && obj2 instanceof Phaser.GameObjects.GameObject) {
+            const shouldTakeDamage = this.player.handlePurpleHitboxCollision(obj2, this.pipeManager, this.isGameOver);
             // Check if Kilboy is in swing state (actively attacking)
             const isInAttackSwing = this.player.sprite.anims.isPlaying && this.player.sprite.anims.currentAnim?.key === "kilboy_swing_anim";
-            const isHoldingSwingFrame = this.player.isHoldingSwingFrameActive;
-            const hasActiveAttackHitbox = !!this.player["attackHitbox"];
-            
-            // Only trigger pipe cutting feedback when Kilboy is actively swinging/attacking
-            if (isInAttackSwing || isHoldingSwingFrame || hasActiveAttackHitbox) {
-              this.pipeCutHitStop.trigger();
-            }
-            
-            const shouldTakeDamage = this.player.handlePurpleHitboxCollision(obj2, this.pipeManager, this.isGameOver);
             // Prevent damage if player is in attack swing animation
             if (shouldTakeDamage && !this.player.isInvincible && !isInAttackSwing) {
               if (this.player.takeHit()) {
@@ -597,24 +589,16 @@ class PlayScene extends BaseScene {
         this
       );
     }
-    // Sprite collides with maroon boxes
+    // Sprite collides with maroon boxes (for damage)
     if (this.player && this.pipeManager.maroonHitboxes) {
       this.physics.add.collider(
         this.player.sprite,
         this.pipeManager.maroonHitboxes,
         (obj1: any, obj2: any) => {
           if (obj1 instanceof Phaser.GameObjects.GameObject && obj2 instanceof Phaser.GameObjects.GameObject) {
+            const shouldTakeDamage = this.player.handleMaroonHitboxCollision(obj2, this.pipeManager, this.isGameOver);
             // Check if Kilboy is in swing state (actively attacking)
             const isInAttackSwing = this.player.sprite.anims.isPlaying && this.player.sprite.anims.currentAnim?.key === "kilboy_swing_anim";
-            const isHoldingSwingFrame = this.player.isHoldingSwingFrameActive;
-            const hasActiveAttackHitbox = !!this.player["attackHitbox"];
-            
-            // Only trigger pipe cutting feedback when Kilboy is actively swinging/attacking
-            if (isInAttackSwing || isHoldingSwingFrame || hasActiveAttackHitbox) {
-              this.pipeCutHitStop.trigger();
-            }
-            
-            const shouldTakeDamage = this.player.handleMaroonHitboxCollision(obj2, this.pipeManager, this.isGameOver);
             // Prevent damage if player is in attack swing animation
             if (shouldTakeDamage && !this.player.isInvincible && !isInAttackSwing) {
               if (this.player.takeHit()) {

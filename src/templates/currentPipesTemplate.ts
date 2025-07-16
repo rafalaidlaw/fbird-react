@@ -1,3 +1,5 @@
+import StaticPipeManager from '../scenes/StaticPipeManager';
+
 // Define the interfaces locally since they're not exported from ChunkManager
 interface PipeConfig {
   type: 'upper' | 'lower' | 'ground';
@@ -28,7 +30,7 @@ export const CURRENT_PIPES_TEMPLATE: ChunkTemplate = {
   difficulty: 1,
   pipes: [
     // Just one upper pipe for testing
-    { type: 'upper', x: 200, y: -600 },  // Centered in the chunk, lowered by 200 pixels
+    { type: 'upper', x: 200, y: StaticPipeManager.PIPE_Y_POSITION },  // Uses configurable Y position
   ],
   enemies: [
     // No enemies currently (enemy system is disabled)
@@ -42,7 +44,7 @@ export const SMALL_CHUNK_TEMPLATES: ChunkTemplate[] = [
     width: 400, // 600-1000
     difficulty: 1,
     pipes: [
-      { type: 'upper', x: 200, y: -600 },  // Centered in the chunk, lowered by 200 pixels
+      { type: 'upper', x: 200, y: StaticPipeManager.PIPE_Y_POSITION },  // Uses configurable Y position
     ],
     enemies: []
   }

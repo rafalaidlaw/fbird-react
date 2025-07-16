@@ -151,6 +151,7 @@ export default class Player {
         }
         this.attackHitbox.destroy();
         this.attackHitbox = undefined;
+        console.log('[HITSTOP DEBUG] Attack hitbox destroyed');
       }
       // Look ahead hitbox is now permanent - no need to clean up
     }
@@ -158,6 +159,7 @@ export default class Player {
       (this.sprite.body as Phaser.Physics.Arcade.Body).velocity.y = -initialFlapVelocity;
     }
     // Play swing animation (non-looping, holds on last frame)
+    console.log('[HITSTOP DEBUG] Entering attack swing state');
     this.sprite.anims.play("kilboy_swing_anim", true);
 
     // Reset hitstop flag for this swing
@@ -180,6 +182,7 @@ export default class Player {
         // If hitstop was NOT triggered, create the attack hitbox immediately
         if (!this.hitstopTriggeredThisSwing) {
           this.createAttackHitbox();
+          console.log('[HITSTOP DEBUG] Attack hitbox created');
         }
         // Remove this handler for future swings
         this.sprite.off('animationupdate', this.animationUpdateHandler as any);
@@ -195,6 +198,7 @@ export default class Player {
           // Recently hit a purple cube, hold on last frame regardless of which frame we're on
 
           this.isHoldingSwingFrame = true;
+          console.log('[HITSTOP DEBUG] Holding swing frame');
           // Stop the animation system completely
           this.sprite.anims.stop();
           // Explicitly set to the last texture of the swing animation
@@ -222,6 +226,7 @@ export default class Player {
             }
             this.attackHitbox.destroy();
             this.attackHitbox = undefined;
+            console.log('[HITSTOP DEBUG] Attack hitbox destroyed');
           }
           this.sprite.off('animationcomplete', animationCompleteHandler);
         }
@@ -444,6 +449,12 @@ export default class Player {
       this.attackHitbox!,
       (this.scene as any).pipeManager?.purpleHitboxes,
       (attack: any, purple: any) => {
+        // Only trigger pipe cut hitstop if the purple cube is fully opaque (not fading)
+        if ((this.scene as any).pipeCutHitStop && purple.alpha >= 1) {
+          console.log("[PIPE CUT HITSTOP] Triggered by attack hitbox hitting purple cube!");
+          (this.scene as any).pipeCutHitStop.trigger();
+        }
+        
         // Simulate Kilboy's upward hit on purple cube (push effect)
         purple.canDamage = false;
         // Disable all purple cubes in the same pipe
@@ -480,6 +491,12 @@ export default class Player {
       this.attackHitbox!,
       (this.scene as any).pipeManager?.maroonHitboxes,
       (attack: any, maroon: any) => {
+        // Only trigger pipe cut hitstop if the maroon cube is fully opaque (not fading)
+        if ((this.scene as any).pipeCutHitStop && maroon.alpha >= 1) {
+          console.log("[PIPE CUT HITSTOP] Triggered by attack hitbox hitting maroon cube!");
+          (this.scene as any).pipeCutHitStop.trigger();
+        }
+        
         // Simulate Kilboy's upward hit on maroon cube (push effect)
         maroon.canDamage = false;
         maroon.wasAttacked = true; // Mark as attacked to prevent column fall inclusion
@@ -651,7 +668,7 @@ export default class Player {
     // Special case: Attack destruction (first frame + upward movement)
     if (isInAttackAnimationFirstFrame && this.sprite && this.sprite.body && (this.sprite.body as Phaser.Physics.Arcade.Body).velocity.y < 0) {
       // Trigger hitstop
-      (this.scene as any).hitStop?.trigger(1000);
+      // (this.scene as any).hitStop?.trigger(1000); // Temporarily disabled
       // Immediately mark this cube as unable to damage to prevent multiple hitstop triggers
       (purpleHitbox as any).canDamage = false;
       // Disable all purple cubes in the same pipe
@@ -784,7 +801,7 @@ export default class Player {
     // Special case: Attack destruction (first frame + upward movement)
     if (isInAttackAnimationFirstFrame && this.sprite && this.sprite.body && (this.sprite.body as Phaser.Physics.Arcade.Body).velocity.y < 0) {
       // Trigger hitstop
-      (this.scene as any).hitStop?.trigger(1000);
+      // (this.scene as any).hitStop?.trigger(1000); // Temporarily disabled
       // Immediately mark this cube as unable to damage to prevent multiple hitstop triggers
       (maroonHitbox as any).canDamage = false;
       // Disable all maroon cubes in the same pipe
@@ -957,6 +974,7 @@ export default class Player {
       // No recent hit and no cubes ahead, exit swing state
       
       this.isHoldingSwingFrame = false;
+      console.log('[HITSTOP DEBUG] Exiting swing frame hold');
       this.sprite.anims.stop();
       // Reset to default texture
       this.sprite.setTexture('kilboy');

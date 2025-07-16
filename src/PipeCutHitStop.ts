@@ -26,10 +26,12 @@ export default class PipeCutHitStop {
     this.pausedObjects = this.pausedObjects.filter(entry => entry.obj !== obj);
   }
 
-  // Trigger hitstop for a duration in ms (default 50ms for pipe cutting feedback)
+  // Trigger hitstop for a duration in ms (default 10ms for pipe cutting feedback)
   // This is completely independent of animation frames - triggered purely by collision
-  trigger(duration: number = 50, onEnd?: () => void) {
-    if (this.isActive) return;
+  trigger(duration: number = 10, onEnd?: () => void) {
+    if (this.isActive) {
+      return;
+    }
     this.isActive = true;
 
     // No animation frame dependencies - this is purely collision-based feedback

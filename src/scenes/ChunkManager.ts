@@ -64,7 +64,7 @@ export default class ChunkManager {
     const shouldSpawn = playerX + spawnDistance > this.lastSpawnedX + minDistanceBetweenChunks && 
                        timeSinceLastSpawn > minSpawnCooldown;
     if (shouldSpawn) {
-      console.log(`[CHUNK SPAWN] Player at ${playerX}, spawning chunk at ${playerX + spawnDistance}`);
+      // console.log(`[CHUNK SPAWN] Player at ${playerX}, spawning chunk at ${playerX + spawnDistance}`);
     }
     return shouldSpawn;
   }
@@ -112,15 +112,15 @@ export default class ChunkManager {
       // Access the pipeManager from the scene
       const pipeManager = (this.scene as any).pipeManager;
       if (pipeManager && pipeConfig.type === 'upper') {
-        console.log(`[CHUNK TEST] Creating upper pipe at (${absoluteX}, ${absoluteY}) from template`);
+        // console.log(`[CHUNK TEST] Creating upper pipe at (${absoluteX}, ${absoluteY}) from template`);
         const createdPipe = pipeManager.createUpperPipe(absoluteX, absoluteY);
         spawnedPipes.push(createdPipe);
       } else if (pipeManager && pipeConfig.type === 'lower') {
-        console.log(`[CHUNK TEST] Creating lower pipe at (${absoluteX}, ${absoluteY}) from template`);
+        // console.log(`[CHUNK TEST] Creating lower pipe at (${absoluteX}, ${absoluteY}) from template`);
         const createdPipe = pipeManager.createLowerPipe(absoluteX, absoluteY);
         spawnedPipes.push(createdPipe);
       } else if (pipeConfig.type === 'ground') {
-        console.log(`[CHUNK TEST] Skipping ground pipe at (${absoluteX}, ${absoluteY}) to avoid ground plane conflicts`);
+        // console.log(`[CHUNK TEST] Skipping ground pipe at (${absoluteX}, ${absoluteY}) to avoid ground plane conflicts`);
       }
     });
 
@@ -154,15 +154,15 @@ export default class ChunkManager {
       // Access the pipeManager from the scene
       const pipeManager = (this.scene as any).pipeManager;
       if (pipeManager && pipeConfig.type === 'upper') {
-        console.log(`[CHUNK TEST] Creating upper pipe at (${absoluteX}, ${absoluteY}) from template`);
+        // console.log(`[CHUNK TEST] Creating upper pipe at (${absoluteX}, ${absoluteY}) from template`);
         const createdPipe = pipeManager.createUpperPipe(absoluteX, absoluteY);
         spawnedPipes.push(createdPipe);
       } else if (pipeManager && pipeConfig.type === 'lower') {
-        console.log(`[CHUNK TEST] Creating lower pipe at (${absoluteX}, ${absoluteY}) from template`);
+        // console.log(`[CHUNK TEST] Creating lower pipe at (${absoluteX}, ${absoluteY}) from template`);
         const createdPipe = pipeManager.createLowerPipe(absoluteX, absoluteY);
         spawnedPipes.push(createdPipe);
       } else if (pipeConfig.type === 'ground') {
-        console.log(`[CHUNK TEST] Skipping ground pipe at (${absoluteX}, ${absoluteY}) to avoid ground plane conflicts`);
+        // console.log(`[CHUNK TEST] Skipping ground pipe at (${absoluteX}, ${absoluteY}) to avoid ground plane conflicts`);
       }
     });
 
@@ -217,7 +217,7 @@ export default class ChunkManager {
     });
     
     chunksToRemove.forEach(chunk => {
-      console.log(`[CHUNK RECYCLE] Recycling chunk at X: ${chunk.x} (template: ${chunk.templateId})`);
+      // console.log(`[CHUNK RECYCLE] Recycling chunk at X: ${chunk.x} (template: ${chunk.templateId})`);
       
       // Clean up pipes (they should be handled by StaticPipeManager.recyclePipes)
       // Clean up enemies (if we add them later)
@@ -230,7 +230,7 @@ export default class ChunkManager {
     });
     
     if (chunksToRemove.length > 0) {
-      console.log(`[CHUNK RECYCLE] Recycled ${chunksToRemove.length} chunks behind player at X: ${playerX}`);
+      // console.log(`[CHUNK RECYCLE] Recycled ${chunksToRemove.length} chunks behind player at X: ${playerX}`);
     }
   }
 

@@ -10,7 +10,7 @@ interface PausedObject {
 export default class HitStop {
   private scene: Phaser.Scene;
   private pausedObjects: PausedObject[] = [];
-  private isActive = false;
+  private activeHitstops = 0;
   private pausedTimers: Phaser.Time.TimerEvent[] = [];
 
   constructor(scene: Phaser.Scene) {
@@ -29,8 +29,10 @@ export default class HitStop {
 
   // Trigger hitstop for a duration in ms
   trigger(duration: number, onEnd?: () => void) {
-    if (this.isActive) return;
-    this.isActive = true;
+    this.activeHitstops++;
+    
+    // Only pause objects if this is the first hitstop
+    if (this.activeHitstops === 1) {
 
     // Pause the player's attack hitbox timers if they exist
     const player = (this.scene as any).player;
@@ -71,44 +73,46 @@ export default class HitStop {
       }
     });
 
+    }
+
     this.scene.time.delayedCall(duration, () => {
-
+      this.activeHitstops--;
       
-      this.pausedObjects.forEach(entry => {
-        const body = (entry.obj.body as Phaser.Physics.Arcade.Body | undefined);
-        // Resume physics
-        if (body && entry.velocity && entry.gravity) {
-          // For chunk-based system: preserve constant rightward velocity for player
-          const player = (this.scene as any).player;
-          const isPlayerSprite = player && entry.obj === player.sprite;
-          
-
-          
-          if (isPlayerSprite) {
-            // Restore Y velocity but maintain constant X velocity for chunk-based movement
-            // Get the player X velocity from PlayScene
-            const playScene = this.scene as any;
-            const playerXVelocity = playScene.PLAYER_X_VELOCITY || 100; // Default to 100 if not found
-            body.setVelocity(playerXVelocity, entry.velocity.y);
-          } else {
-            // For non-player objects, restore original velocity
-            body.setVelocity(entry.velocity.x, entry.velocity.y);
+      // Only resume objects if this was the last hitstop
+      if (this.activeHitstops === 0) {
+        this.pausedObjects.forEach(entry => {
+          const body = (entry.obj.body as Phaser.Physics.Arcade.Body | undefined);
+          // Resume physics
+          if (body && entry.velocity && entry.gravity) {
+            // For chunk-based system: preserve constant rightward velocity for player
+            const player = (this.scene as any).player;
+            const isPlayerSprite = player && entry.obj === player.sprite;
+            
+            if (isPlayerSprite) {
+              // Restore Y velocity but maintain constant X velocity for chunk-based movement
+              // Get the player X velocity from PlayScene
+              const playScene = this.scene as any;
+              const playerXVelocity = playScene.PLAYER_X_VELOCITY || 100; // Default to 100 if not found
+              body.setVelocity(playerXVelocity, entry.velocity.y);
+            } else {
+              // For non-player objects, restore original velocity
+              body.setVelocity(entry.velocity.x, entry.velocity.y);
+            }
+            body.setGravity(entry.gravity.x, entry.gravity.y);
+            body.moves = entry.moves ?? true;
           }
-          body.setGravity(entry.gravity.x, entry.gravity.y);
-          body.moves = entry.moves ?? true;
-        }
-        // Resume animation if it was playing
-        if (entry.obj instanceof Phaser.GameObjects.Sprite && (entry as any).wasPlaying) {
-          entry.obj.anims.resume();
-        }
-      });
-      
-      // Resume any paused timers
-      this.pausedTimers.forEach(timer => {
-        timer.paused = false;
-      });
-      this.pausedTimers = [];
-      this.isActive = false;
+          // Resume animation if it was playing
+          if (entry.obj instanceof Phaser.GameObjects.Sprite && (entry as any).wasPlaying) {
+            entry.obj.anims.resume();
+          }
+        });
+        
+        // Resume any paused timers
+        this.pausedTimers.forEach(timer => {
+          timer.paused = false;
+        });
+        this.pausedTimers = [];
+      }
       
       // Force-set player X velocity one more time to ensure it's restored
       const player = (this.scene as any).player;
