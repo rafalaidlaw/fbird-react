@@ -23,15 +23,21 @@ export default class StaticPipeManager {
   // Configurable fade duration for maroon cubes (in milliseconds)
   public static readonly MAROON_CUBE_FADE_DURATION = 1000;
   
-  // Configurable pipe height - this controls the entire pipe size
-  private static readonly PIPE_HEIGHT = 1200; // Total height from sky to blue hitbox
   private static readonly BLUE_HITBOX_HEIGHT = 32; // Height of blue hitbox area
-  
-  // Configurable pipe Y position - controls where pipes are placed vertically
-  public static readonly PIPE_Y_POSITION = 400; // Y position for pipe placement
   
   // Configurable container position - controls where the pipe container is positioned
   public static readonly CONTAINER_Y_POSITION = -800; // Y position for pipe container (sky level)
+
+  // Random offset for pipe height and position
+  private static readonly PIPE_HEIGHT_OFFSET = Math.floor(Math.random() * 801) - 400; // -400 to 400
+
+  // Base pipe height and position
+  private static readonly BASE_PIPE_HEIGHT = 800;
+  private static readonly BASE_PIPE_Y_POSITION = 0;
+
+  // Final randomized values
+  public static readonly PIPE_HEIGHT = StaticPipeManager.BASE_PIPE_HEIGHT + StaticPipeManager.PIPE_HEIGHT_OFFSET;
+  public static readonly PIPE_Y_POSITION = StaticPipeManager.BASE_PIPE_Y_POSITION + StaticPipeManager.PIPE_HEIGHT_OFFSET;
 
   constructor(scene: Phaser.Scene, config: any, difficulties: any, currentDifficulty: string) {
     this.scene = scene;
