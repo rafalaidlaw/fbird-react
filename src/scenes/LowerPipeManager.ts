@@ -1,5 +1,4 @@
 import Phaser from "phaser";
-import StaticPipeManager from "./StaticPipeManager";
 
 export default class LowerPipeManager {
   private scene: Phaser.Scene;
@@ -22,10 +21,41 @@ export default class LowerPipeManager {
   
   // Configurable fade duration for maroon cubes (in milliseconds)
   public static readonly MAROON_CUBE_FADE_DURATION = 1000;
-  
-  // Use centralized Y placement from StaticPipeManager
-  public static get PIPE_HEIGHT() { return StaticPipeManager.getUpperPipeHeight(); }
-  public static get PIPE_Y_POSITION() { return StaticPipeManager.getLowerPipeY(); }
+
+  // Y placement constants for lower pipes
+  private static readonly GROUND_Y_POSITION = 1000; // Ground plane Y position
+  private static readonly LOWER_PIPE_HEIGHT_OFFSET = Math.floor(Math.random() * 801) - 400; // -400 to 400
+  private static readonly BASE_LOWER_PIPE_HEIGHT = 800;
+  private static readonly BASE_LOWER_PIPE_Y_POSITION = 0;
+
+  // Final randomized values for lower pipes
+  public static readonly LOWER_PIPE_HEIGHT = LowerPipeManager.BASE_LOWER_PIPE_HEIGHT + LowerPipeManager.LOWER_PIPE_HEIGHT_OFFSET;
+  public static readonly LOWER_PIPE_Y_POSITION = LowerPipeManager.BASE_LOWER_PIPE_Y_POSITION + LowerPipeManager.LOWER_PIPE_HEIGHT_OFFSET;
+
+  // Static methods to access Y placement values for lower pipes
+  public static getGroundYPosition(): number {
+    return LowerPipeManager.GROUND_Y_POSITION;
+  }
+
+  public static getLowerPipeHeight(): number {
+    return LowerPipeManager.LOWER_PIPE_HEIGHT;
+  }
+
+  public static getLowerPipeYPosition(): number {
+    return LowerPipeManager.LOWER_PIPE_Y_POSITION;
+  }
+
+  public static getLowerPipeHeightOffset(): number {
+    return LowerPipeManager.LOWER_PIPE_HEIGHT_OFFSET;
+  }
+
+  public static getBaseLowerPipeHeight(): number {
+    return LowerPipeManager.BASE_LOWER_PIPE_HEIGHT;
+  }
+
+  public static getBaseLowerPipeYPosition(): number {
+    return LowerPipeManager.BASE_LOWER_PIPE_Y_POSITION;
+  }
 
   constructor(scene: Phaser.Scene, config: any, difficulties: any, currentDifficulty: string) {
     this.scene = scene;
@@ -45,8 +75,8 @@ export default class LowerPipeManager {
 
     
     // Create lower pipe as a container with orange rectangle - extend to ground
-    const groundY = StaticPipeManager.getGroundY(); // Ground plane Y position
-    const lowerPipeHeight = StaticPipeManager.getLowerPipeHeight(y); // Height needed to reach ground from pipe position
+    const groundY = LowerPipeManager.GROUND_Y_POSITION; // Use centralized ground Y position
+    const lowerPipeHeight = groundY - y; // Height needed to reach ground from pipe position
     
     const lowerPipeContainer = this.scene.add.container(x, y);
     const orangeRect = this.scene.add.rectangle(0, 0, blueWidth, lowerPipeHeight, 0xff8c00);
@@ -89,7 +119,7 @@ export default class LowerPipeManager {
 
     
     // Ground plane is at Y=1000, so the pipe starts there and goes up
-    const groundY = StaticPipeManager.getGroundY();
+    const groundY = LowerPipeManager.GROUND_Y_POSITION; // Use centralized ground Y position
     
     // Create ground pipe as a container with orange rectangle
     const groundPipeContainer = this.scene.add.container(x, groundY);
@@ -183,8 +213,9 @@ export default class LowerPipeManager {
         hitbox.setPosition(exactX, exactY);
         
         this.scene.physics.add.existing(hitbox);
-        (hitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
+         (hitbox.body as Phaser.Physics.Arcade.Body).setImmovable(false); // Allow movement for gravity/velocity
         (hitbox.body as Phaser.Physics.Arcade.Body).setSize(hitboxWidth, hitboxWidth);
+        (hitbox.body as Phaser.Physics.Arcade.Body).setAllowGravity(true); // Enable gravity from creation
         hitbox.canDamage = true;
         pipeContainer.add(hitbox); // Add to container first
         this.maroonHitboxes.add(hitbox); // Then add to global group
@@ -242,23 +273,13 @@ export default class LowerPipeManager {
                      }
                    });
                  }
-                 // Only start fading when Y velocity becomes positive
-                 const checkVelocityAndFade = () => {
-                   if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
-                     if (hitbox.body.velocity.y > 0) {
-                       this.scene.tweens.add({
-                         targets: hitbox,
-                         alpha: 0,
-                         duration: LowerPipeManager.MAROON_CUBE_FADE_DURATION,
-                         ease: 'Linear',
-                       });
-                     } else {
-                       // Check again in 50ms if velocity is still negative
-                       this.scene.time.delayedCall(50, checkVelocityAndFade);
-                     }
-                   }
-                 };
-                 checkVelocityAndFade();
+                 // Start fading immediately when velocity is applied (same as purple cubes)
+                 this.scene.tweens.add({
+                   targets: hitbox,
+                   alpha: 0,
+                   duration: LowerPipeManager.MAROON_CUBE_FADE_DURATION,
+                   ease: 'Linear',
+                 });
                }
              });
              

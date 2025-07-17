@@ -282,10 +282,10 @@ export default class Player {
     // Set up overlap detection with pipe containers to trigger purple cube generation
     this.scene.physics.add.overlap(
       this.hitStopCheck!,
-      (this.scene as any).pipeManager?.pipes,
+      (this.scene as any).upperPipeManager?.pipes,
       (hitStop: any, pipeContainer: any) => {
         // Generate purple cubes for this pipe if not already generated
-        (this.scene as any).pipeManager?.generatePurpleCubesForPipe(pipeContainer);
+        (this.scene as any).upperPipeManager?.generatePurpleCubesForPipe(pipeContainer);
       },
       undefined,
       this
@@ -294,7 +294,7 @@ export default class Player {
     // Set up overlap with purple cubes for the hitStopCheck hitbox
     this.scene.physics.add.overlap(
       this.hitStopCheck!,
-      (this.scene as any).pipeManager?.purpleHitboxes,
+      (this.scene as any).upperPipeManager?.purpleHitboxes,
       (attack: any, purple: any) => {
         // Only trigger hitstop and dash if the purple cube can still damage
         if (purple.canDamage === false) return;
@@ -344,7 +344,7 @@ export default class Player {
     // Set up overlap with maroon cubes for the hitStopCheck hitbox
     this.scene.physics.add.overlap(
       this.hitStopCheck!,
-      (this.scene as any).pipeManager?.maroonHitboxes,
+      (this.scene as any).lowerPipeManager?.maroonHitboxes,
       (attack: any, maroon: any) => {
         // Only trigger hitstop and dash if the maroon cube can still damage
         if (maroon.canDamage === false) return;
@@ -358,7 +358,7 @@ export default class Player {
         this.disableAllMaroonCubesInPipe(maroon);
         
         // Trigger fall for maroon cubes above the hit cube
-        (this.scene as any).pipeManager.triggerFallForHitboxesAbove(maroon, false, false);
+        (this.scene as any).lowerPipeManager.triggerFallForHitboxesAbove(maroon, false, false);
         
         // On collision, trigger hitstop and destroy the hitStopCheck hitbox immediately
         // Only trigger hitstop when jump count is 0 (first swing)
@@ -435,10 +435,10 @@ export default class Player {
     // Set up overlap detection with pipe containers to trigger purple cube generation
     this.scene.physics.add.overlap(
       this.attackHitbox!,
-      (this.scene as any).pipeManager?.pipes,
+      (this.scene as any).upperPipeManager?.pipes,
       (attack: any, pipeContainer: any) => {
         // Generate purple cubes for this pipe if not already generated
-        (this.scene as any).pipeManager?.generatePurpleCubesForPipe(pipeContainer);
+        (this.scene as any).upperPipeManager?.generatePurpleCubesForPipe(pipeContainer);
       },
       undefined,
       this
@@ -447,7 +447,7 @@ export default class Player {
     // Set up overlap with purple cubes for the attack hitbox (push effect, no hitstop)
     this.scene.physics.add.overlap(
       this.attackHitbox!,
-      (this.scene as any).pipeManager?.purpleHitboxes,
+      (this.scene as any).upperPipeManager?.purpleHitboxes,
       (attack: any, purple: any) => {
         // Only trigger pipe cut hitstop if the purple cube is fully opaque (not fading)
         if ((this.scene as any).pipeCutHitStop && purple.alpha >= 1) {
@@ -463,8 +463,8 @@ export default class Player {
         this.lastPurpleCubeHitTime = this.scene.time.now;
         if (purple.body && purple.body instanceof Phaser.Physics.Arcade.Body) {
           // Move to falling group to prevent collision with player
-          (this.scene as any).pipeManager.purpleHitboxes.remove(purple);
-          (this.scene as any).pipeManager.fallingPurpleHitboxes.add(purple);
+          (this.scene as any).upperPipeManager.purpleHitboxes.remove(purple);
+          (this.scene as any).upperPipeManager.fallingPurpleHitboxes.add(purple);
           
           purple.body.setAllowGravity(true);
           purple.body.setGravityY(800);
@@ -480,7 +480,7 @@ export default class Player {
             ease: 'Linear',
           });
         }
-        (this.scene as any).pipeManager.triggerFallForHitboxesBelow(purple, false, false);
+        (this.scene as any).upperPipeManager.triggerFallForHitboxesBelow(purple, false, false);
       },
       undefined,
       this
@@ -489,7 +489,7 @@ export default class Player {
     // Set up overlap with maroon cubes for the attack hitbox (push effect, no hitstop)
     this.scene.physics.add.overlap(
       this.attackHitbox!,
-      (this.scene as any).pipeManager?.maroonHitboxes,
+      (this.scene as any).lowerPipeManager?.maroonHitboxes,
       (attack: any, maroon: any) => {
         // Only trigger pipe cut hitstop if the maroon cube is fully opaque (not fading)
         if ((this.scene as any).pipeCutHitStop && maroon.alpha >= 1) {
@@ -511,23 +511,13 @@ export default class Player {
           const randomY = Phaser.Math.Between(-170, -130);
           maroon.body.setVelocity(randomX, randomY);
         }
-        // Only start fading when Y velocity becomes positive
-        const checkVelocityAndFade = () => {
-          if (maroon.body && maroon.body instanceof Phaser.Physics.Arcade.Body) {
-            if (maroon.body.velocity.y > 0) {
-              this.scene.tweens.add({
-                targets: maroon,
-                alpha: 0,
-                duration: PipeManager.MAROON_CUBE_FADE_DURATION,
-                ease: 'Linear',
-              });
-            } else {
-              // Check again in 50ms if velocity is still negative
-              this.scene.time.delayedCall(50, checkVelocityAndFade);
-            }
-          }
-        };
-        checkVelocityAndFade();
+        // Start fading immediately when velocity is applied (same as purple cubes)
+        this.scene.tweens.add({
+          targets: maroon,
+          alpha: 0,
+          duration: PipeManager.MAROON_CUBE_FADE_DURATION,
+          ease: 'Linear',
+        });
 
       },
       undefined,
@@ -730,8 +720,8 @@ export default class Player {
       const body = hitbox.body as Phaser.Physics.Arcade.Body;
       if (Math.abs(body.velocity.x) > 5 || Math.abs(body.velocity.y) > 5) {
         // Move to falling group to prevent further collisions
-        (this.scene as any).pipeManager.purpleHitboxes.remove(hitbox);
-        (this.scene as any).pipeManager.fallingPurpleHitboxes.add(hitbox);
+        (this.scene as any).upperPipeManager.purpleHitboxes.remove(hitbox);
+        (this.scene as any).upperPipeManager.fallingPurpleHitboxes.add(hitbox);
       }
     }
     
@@ -774,23 +764,13 @@ export default class Player {
         const randomY = Phaser.Math.Between(-150, -25);
         hitbox.body.setVelocity(randomX, randomY);
       }
-      // Only start fading when Y velocity becomes positive
-      const checkVelocityAndFade = () => {
-        if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
-          if (hitbox.body.velocity.y > 0) {
-            this.scene.tweens.add({
-              targets: hitbox,
-              alpha: 0,
-              duration: PipeManager.MAROON_CUBE_FADE_DURATION,
-              ease: 'Linear',
-            });
-          } else {
-            // Check again in 50ms if velocity is still negative
-            this.scene.time.delayedCall(50, checkVelocityAndFade);
-          }
-        }
-      };
-      checkVelocityAndFade();
+      // Start fading immediately when velocity is applied (same as purple cubes)
+      this.scene.tweens.add({
+        targets: hitbox,
+        alpha: 0,
+        duration: PipeManager.MAROON_CUBE_FADE_DURATION,
+        ease: 'Linear',
+      });
       
       return false; // No damage during dash
     }
@@ -826,23 +806,13 @@ export default class Player {
         const randomY = Phaser.Math.Between(-150, -25);
         hitbox.body.setVelocity(randomX, randomY);
       }
-      // Only start fading when Y velocity becomes positive
-      const checkVelocityAndFade = () => {
-        if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
-          if (hitbox.body.velocity.y > 0) {
-            this.scene.tweens.add({
-              targets: hitbox,
-              alpha: 0,
-              duration: PipeManager.MAROON_CUBE_FADE_DURATION,
-              ease: 'Linear',
-            });
-          } else {
-            // Check again in 50ms if velocity is still negative
-            this.scene.time.delayedCall(50, checkVelocityAndFade);
-          }
-        }
-      };
-      checkVelocityAndFade();
+      // Start fading immediately when velocity is applied (same as purple cubes)
+      this.scene.tweens.add({
+        targets: hitbox,
+        alpha: 0,
+        duration: PipeManager.MAROON_CUBE_FADE_DURATION,
+        ease: 'Linear',
+      });
       return false; // No damage during attack destruction
     }
     
@@ -1006,11 +976,11 @@ export default class Player {
   
   // Disable all purple cubes from the same pipe when one is hit
   private disableAllPurpleCubesInPipe(hitPurpleCube: Phaser.GameObjects.Rectangle): void {
-    const pipeManager = (this.scene as any).pipeManager;
-    if (!pipeManager || !pipeManager.pipes) return;
+    const upperPipeManager = (this.scene as any).upperPipeManager;
+    if (!upperPipeManager || !upperPipeManager.pipes) return;
 
     // Find which pipe this purple cube belongs to
-    pipeManager.pipes.getChildren().forEach((pipe: any) => {
+    upperPipeManager.pipes.getChildren().forEach((pipe: any) => {
       const upperPipe = pipe as Phaser.GameObjects.Container;
       if (upperPipe && (upperPipe as any).purpleHitboxes) {
         const pipeHitboxes = (upperPipe as any).purpleHitboxes as Phaser.GameObjects.Rectangle[];
@@ -1030,11 +1000,11 @@ export default class Player {
 
   // Disable all maroon cubes from the same pipe when one is hit
   private disableAllMaroonCubesInPipe(hitMaroonCube: Phaser.GameObjects.Rectangle): void {
-    const pipeManager = (this.scene as any).pipeManager;
-    if (!pipeManager || !pipeManager.pipes) return;
+    const lowerPipeManager = (this.scene as any).lowerPipeManager;
+    if (!lowerPipeManager || !lowerPipeManager.pipes) return;
 
     // Find which pipe this maroon cube belongs to
-    pipeManager.pipes.getChildren().forEach((pipe: any) => {
+    lowerPipeManager.pipes.getChildren().forEach((pipe: any) => {
       const lowerPipe = pipe as Phaser.GameObjects.Container;
       if (lowerPipe && (lowerPipe as any).maroonHitboxes) {
         const pipeHitboxes = (lowerPipe as any).maroonHitboxes as Phaser.GameObjects.Rectangle[];
@@ -1054,8 +1024,8 @@ export default class Player {
 
   // Manually detect if there are purple cubes ahead of Kilboy
   private detectCubesAhead(): boolean {
-    const pipeManager = (this.scene as any).pipeManager;
-    if (!pipeManager || !pipeManager.purpleHitboxes) return false;
+    const upperPipeManager = (this.scene as any).upperPipeManager;
+    if (!upperPipeManager || !upperPipeManager.purpleHitboxes) return false;
 
     // Define look-ahead area (80% smaller: same dimensions as createLookAheadHitbox)
     const lookAheadWidth = 24;
@@ -1067,7 +1037,7 @@ export default class Player {
     
     // Check if any purple cubes are in the look-ahead area
     let cubesFound = false;
-    pipeManager.purpleHitboxes.getChildren().forEach((purpleHitbox: any) => {
+    upperPipeManager.purpleHitboxes.getChildren().forEach((purpleHitbox: any) => {
       if (!purpleHitbox.active || (purpleHitbox as any).canDamage === false) return;
       
       const purpleBounds = purpleHitbox.getBounds();
@@ -1083,12 +1053,12 @@ export default class Player {
 
   // Actively cut through purple cubes while holding swing pose
   private cutThroughPurpleCubes(): void {
-    const pipeManager = (this.scene as any).pipeManager;
-    if (!pipeManager || !pipeManager.purpleHitboxes) return;
+    const upperPipeManager = (this.scene as any).upperPipeManager;
+    if (!upperPipeManager || !upperPipeManager.purpleHitboxes) return;
 
     const playerBounds = this.sprite.getBounds();
     
-    pipeManager.purpleHitboxes.getChildren().forEach((purpleHitbox: any) => {
+    upperPipeManager.purpleHitboxes.getChildren().forEach((purpleHitbox: any) => {
       if (!purpleHitbox.active || (purpleHitbox as any).canDamage === false) return;
       
       const purpleBounds = purpleHitbox.getBounds();
@@ -1104,8 +1074,8 @@ export default class Player {
         // Apply destruction effect
         if (purpleHitbox.body && purpleHitbox.body instanceof Phaser.Physics.Arcade.Body) {
           // Move to falling group to prevent collision with player
-          (this.scene as any).pipeManager.purpleHitboxes.remove(purpleHitbox);
-          (this.scene as any).pipeManager.fallingPurpleHitboxes.add(purpleHitbox);
+          (this.scene as any).upperPipeManager.purpleHitboxes.remove(purpleHitbox);
+          (this.scene as any).upperPipeManager.fallingPurpleHitboxes.add(purpleHitbox);
           
           purpleHitbox.body.setAllowGravity(true);
           purpleHitbox.body.setGravityY(800);
@@ -1123,7 +1093,7 @@ export default class Player {
         }
         
         // Trigger column collapse
-        pipeManager.triggerFallForHitboxesBelow(purpleHitbox, false, false);
+        upperPipeManager.triggerFallForHitboxesBelow(purpleHitbox, false, false);
       }
     });
   }

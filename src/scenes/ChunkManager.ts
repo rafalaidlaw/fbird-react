@@ -1,5 +1,7 @@
 import Phaser from "phaser";
 import { CURRENT_PIPES_TEMPLATE } from '../templates/currentPipesTemplate';
+import UpperPipeManager from "./UpperPipeManager";
+import LowerPipeManager from "./LowerPipeManager";
 
 // Chunk template interfaces
 interface PipeConfig {
@@ -35,9 +37,17 @@ export default class ChunkManager {
   private chunkTemplates: ChunkTemplate[] = [];
   private lastSpawnTime: number = 0; // Track last spawn time to prevent duplicates
 
-  constructor(scene: Phaser.Scene, config: any) {
+  // Direct references to pipe managers
+  private upperPipeManager: UpperPipeManager;
+  private lowerPipeManager: LowerPipeManager;
+  private combinedPipes: Phaser.Physics.Arcade.Group;
+
+  constructor(scene: Phaser.Scene, config: any, upperPipeManager: UpperPipeManager, lowerPipeManager: LowerPipeManager) {
     this.scene = scene;
     this.config = config;
+    this.upperPipeManager = upperPipeManager;
+    this.lowerPipeManager = lowerPipeManager;
+    this.combinedPipes = this.scene.physics.add.group();
     this.initializeChunkTemplates();
   }
 
@@ -109,15 +119,15 @@ export default class ChunkManager {
       const absoluteX = chunkX + pipeConfig.x;
       const absoluteY = pipeConfig.y;
       
-      // Access the pipeManager from the scene
-      const pipeManager = (this.scene as any).pipeManager;
-      if (pipeManager && pipeConfig.type === 'upper') {
+      if (pipeConfig.type === 'upper') {
         // console.log(`[CHUNK TEST] Creating upper pipe at (${absoluteX}, ${absoluteY}) from template`);
-        const createdPipe = pipeManager.createUpperPipe(absoluteX, absoluteY);
+        const createdPipe = this.upperPipeManager.createUpperPipe(absoluteX, absoluteY);
+        this.combinedPipes.add(createdPipe);
         spawnedPipes.push(createdPipe);
-      } else if (pipeManager && pipeConfig.type === 'lower') {
+      } else if (pipeConfig.type === 'lower') {
         // console.log(`[CHUNK TEST] Creating lower pipe at (${absoluteX}, ${absoluteY}) from template`);
-        const createdPipe = pipeManager.createLowerPipe(absoluteX, absoluteY);
+        const createdPipe = this.lowerPipeManager.createLowerPipe(absoluteX, absoluteY);
+        this.combinedPipes.add(createdPipe);
         spawnedPipes.push(createdPipe);
       } else if (pipeConfig.type === 'ground') {
         // console.log(`[CHUNK TEST] Skipping ground pipe at (${absoluteX}, ${absoluteY}) to avoid ground plane conflicts`);
@@ -151,18 +161,18 @@ export default class ChunkManager {
       const absoluteX = chunkX + pipeConfig.x;
       const absoluteY = pipeConfig.y;
       
-      // Access the pipeManager from the scene
-      const pipeManager = (this.scene as any).pipeManager;
-      if (pipeManager && pipeConfig.type === 'upper') {
+      if (pipeConfig.type === 'upper') {
         // console.log(`[CHUNK TEST] Creating upper pipe at (${absoluteX}, ${absoluteY}) from template`);
-        const createdPipe = pipeManager.createUpperPipe(absoluteX, absoluteY);
+        const createdPipe = this.upperPipeManager.createUpperPipe(absoluteX, absoluteY);
+        this.combinedPipes.add(createdPipe);
         spawnedPipes.push(createdPipe);
-      } else if (pipeManager && pipeConfig.type === 'lower') {
+      } else if (pipeConfig.type === 'lower') {
         // console.log(`[CHUNK TEST] Creating lower pipe at (${absoluteX}, ${absoluteY}) from template`);
-        const createdPipe = pipeManager.createLowerPipe(absoluteX, absoluteY);
+        const createdPipe = this.lowerPipeManager.createLowerPipe(absoluteX, absoluteY);
+        this.combinedPipes.add(createdPipe);
         spawnedPipes.push(createdPipe);
       } else if (pipeConfig.type === 'ground') {
-        // console.log(`[CHUNK TEST] Skipping ground pipe at (${absoluteX}, ${absoluteY}) to avoid ground plane conflicts`);
+        // console.log(`[CHUNK TEST] Skipping ground pipe at (${absoluteX}, ${absoluteY}) from template`);
       }
     });
 
@@ -219,7 +229,7 @@ export default class ChunkManager {
     chunksToRemove.forEach(chunk => {
       // console.log(`[CHUNK RECYCLE] Recycling chunk at X: ${chunk.x} (template: ${chunk.templateId})`);
       
-      // Clean up pipes (they should be handled by StaticPipeManager.recyclePipes)
+      // Clean up pipes (they should be handled by individual pipe managers)
       // Clean up enemies (if we add them later)
       
       // Remove from active chunks
@@ -232,6 +242,11 @@ export default class ChunkManager {
     if (chunksToRemove.length > 0) {
       // console.log(`[CHUNK RECYCLE] Recycled ${chunksToRemove.length} chunks behind player at X: ${playerX}`);
     }
+  }
+
+  // Expose combined pipes group for look-ahead detection
+  public get pipes() {
+    return this.combinedPipes;
   }
 
   // Reset chunk index for testing (temporary)

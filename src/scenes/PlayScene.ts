@@ -1,7 +1,8 @@
 import BaseScene from "./BaseScene";
 import UIManager from "./UIManager";
 import Player from "./Player";
-import StaticPipeManager from "./StaticPipeManager";
+import UpperPipeManager from "./UpperPipeManager";
+import LowerPipeManager from "./LowerPipeManager";
 import HitStop from "../HitStop";
 import PipeCutHitStop from "../PipeCutHitStop";
 import ChunkManager from "./ChunkManager";
@@ -24,7 +25,8 @@ const PLAYER_X_VELOCITY = 250; // Constant rightward velocity for chunk-based mo
 
 class PlayScene extends BaseScene {
   private player!: Player;
-  private pipeManager!: StaticPipeManager;
+  private upperPipeManager!: UpperPipeManager;
+  private lowerPipeManager!: LowerPipeManager;
   private isTouchingBlueHitbox: boolean = false;
   private isPaused: boolean = false;
   private isGameOver: boolean = false;
@@ -108,10 +110,11 @@ class PlayScene extends BaseScene {
     const cameraLowerBound = 1310 - (this.config.height / 2); // Ground Y + visible pixels - half screen height
     this.cameras.main.setBounds(0, cameraUpperBound, 1000000, cameraLowerBound - cameraUpperBound); // Full vertical range
     
-    this.pipeManager = new StaticPipeManager(this, this.config, this.difficulties, this.currentDifficulty);
+    this.upperPipeManager = new UpperPipeManager(this, this.config, this.difficulties, this.currentDifficulty);
+    this.lowerPipeManager = new LowerPipeManager(this, this.config, this.difficulties, this.currentDifficulty);
     
-    // Initialize ChunkManager (for future use)
-    this.chunkManager = new ChunkManager(this, this.config);
+    // Initialize ChunkManager with pipe managers
+    this.chunkManager = new ChunkManager(this, this.config, this.upperPipeManager, this.lowerPipeManager);
     
     this.createEnemies();
     this.createColiders();
@@ -132,7 +135,8 @@ class PlayScene extends BaseScene {
     this.player.preUpdate(); // (now does nothing, but kept for structure)
     this.checkGameStatus();
     // Recycle static pipes that are far behind the player
-    this.pipeManager.recyclePipes(this.player.sprite.x, 1000);
+    this.upperPipeManager.recyclePipes(this.player.sprite.x, 1000);
+    this.lowerPipeManager.recyclePipes(this.player.sprite.x, 1000);
     // Recycle chunks that are far behind the player
     this.chunkManager.recycleChunks(this.player.sprite.x, 1000);
     this.checkGreenHitboxOverlap();
@@ -206,7 +210,7 @@ class PlayScene extends BaseScene {
       }
     }
     // Sync blueBottomHitbox to follow blueHitbox every frame
-    this.pipeManager.blueHitboxes.getChildren().forEach((blueHitbox: any) => {
+    this.upperPipeManager.blueHitboxes.getChildren().forEach((blueHitbox: any) => {
       if (blueHitbox.blueBottomHitbox) {
         blueHitbox.blueBottomHitbox.x = blueHitbox.x + blueHitbox.width / 2;
         // blueHitbox.blueBottomHitbox.y = blueHitbox.y + blueHitbox.height + 60; // Keep y fixed
@@ -221,10 +225,10 @@ class PlayScene extends BaseScene {
     // List of all objects to apply gravity multiplier to
     const gravityObjects = [
       this.player.sprite,
-      ...this.pipeManager.purpleHitboxes.getChildren(),
-      ...this.pipeManager.maroonHitboxes.getChildren(),
-      ...this.pipeManager.fallingMaroonHitboxes.getChildren(),
-      ...this.pipeManager.fallingPurpleHitboxes.getChildren()
+      ...this.upperPipeManager.purpleHitboxes.getChildren(),
+      ...this.lowerPipeManager.maroonHitboxes.getChildren(),
+      ...this.lowerPipeManager.fallingMaroonHitboxes.getChildren(),
+      ...this.upperPipeManager.fallingPurpleHitboxes.getChildren()
     ];
     gravityObjects.forEach(obj => {
       if (obj.body && obj.body instanceof Phaser.Physics.Arcade.Body) {
@@ -243,7 +247,7 @@ class PlayScene extends BaseScene {
     // --- End Gravity Multiplier System ---
     
     // Check purple hitboxes for X velocity and apply gravity/fading (but don't move to falling group yet)
-    this.pipeManager.purpleHitboxes.getChildren().forEach((purpleHitbox: any) => {
+    this.upperPipeManager.purpleHitboxes.getChildren().forEach((purpleHitbox: any) => {
       if (purpleHitbox.body && purpleHitbox.body instanceof Phaser.Physics.Arcade.Body) {
         const body = purpleHitbox.body as Phaser.Physics.Arcade.Body;
         
@@ -265,7 +269,38 @@ class PlayScene extends BaseScene {
             this.tweens.add({
               targets: purpleHitbox,
               alpha: 0,
-              duration: StaticPipeManager.PURPLE_CUBE_FADE_DURATION,
+                              duration: UpperPipeManager.PURPLE_CUBE_FADE_DURATION,
+              ease: 'Linear',
+            });
+          }
+        }
+      }
+    });
+    
+    // Check maroon hitboxes for X velocity and apply gravity/fading
+    this.lowerPipeManager.maroonHitboxes.getChildren().forEach((maroonHitbox: any) => {
+      if (maroonHitbox.body && maroonHitbox.body instanceof Phaser.Physics.Arcade.Body) {
+        const body = maroonHitbox.body as Phaser.Physics.Arcade.Body;
+        
+        // If maroon hitbox has significant velocity, apply gravity and fading
+        if (Math.abs(body.velocity.x) > 5) { // Higher threshold to avoid moving stationary hitboxes
+          // Enable gravity if not already enabled
+          if (!body.allowGravity) {
+            body.setAllowGravity(true);
+            body.setGravityY(800);
+          }
+          
+          // If Y velocity is zero, apply downward velocity to make it fall
+          if (Math.abs(body.velocity.y) < 0.1) {
+            body.setVelocityY(50); // Small downward velocity to start falling
+          }
+          
+          // Start fading if not already fading
+          if (maroonHitbox.alpha > 0) {
+            this.tweens.add({
+              targets: maroonHitbox,
+              alpha: 0,
+              duration: LowerPipeManager.MAROON_CUBE_FADE_DURATION,
               ease: 'Linear',
             });
           }
@@ -547,17 +582,13 @@ class PlayScene extends BaseScene {
   }
 
   private createColiders(): void {
-    if (this.player && this.pipeManager.pipes) {
-      // Optionally add pipe collision logic here
-    }
-    
     // Ground plane segments are handled in createGroundSegment method
     // No need for separate collider here since each segment has its own collider
     // Upper hitbox overlaps with blue boxes (sensor-only detection)
-    if (this.player && this.player.upperHitbox && this.pipeManager.blueHitboxes) {
+    if (this.player && this.player.upperHitbox && this.upperPipeManager.blueHitboxes) {
       this.physics.add.overlap(
         this.player.upperHitbox,
-        this.pipeManager.blueHitboxes,
+        this.upperPipeManager.blueHitboxes,
         (obj1: any, obj2: any) => {
           // Handle blue box overlap with upper hitbox
           this.handleBlueBoxCollision(obj2);
@@ -567,13 +598,13 @@ class PlayScene extends BaseScene {
       );
     }
     // Sprite collides with purple boxes (for damage)
-    if (this.player && this.pipeManager.purpleHitboxes) {
+    if (this.player && this.upperPipeManager.purpleHitboxes) {
       this.physics.add.collider(
         this.player.sprite,
-        this.pipeManager.purpleHitboxes,
+        this.upperPipeManager.purpleHitboxes,
         (obj1: any, obj2: any) => {
           if (obj1 instanceof Phaser.GameObjects.GameObject && obj2 instanceof Phaser.GameObjects.GameObject) {
-            const shouldTakeDamage = this.player.handlePurpleHitboxCollision(obj2, this.pipeManager, this.isGameOver);
+            const shouldTakeDamage = this.player.handlePurpleHitboxCollision(obj2, this.upperPipeManager, this.isGameOver);
             // Check if Kilboy is in swing state (actively attacking)
             const isInAttackSwing = this.player.sprite.anims.isPlaying && this.player.sprite.anims.currentAnim?.key === "kilboy_swing_anim";
             // Prevent damage if player is in attack swing animation
@@ -590,13 +621,13 @@ class PlayScene extends BaseScene {
       );
     }
     // Sprite collides with maroon boxes (for damage)
-    if (this.player && this.pipeManager.maroonHitboxes) {
+    if (this.player && this.lowerPipeManager.maroonHitboxes) {
       this.physics.add.collider(
         this.player.sprite,
-        this.pipeManager.maroonHitboxes,
+        this.lowerPipeManager.maroonHitboxes,
         (obj1: any, obj2: any) => {
           if (obj1 instanceof Phaser.GameObjects.GameObject && obj2 instanceof Phaser.GameObjects.GameObject) {
-            const shouldTakeDamage = this.player.handleMaroonHitboxCollision(obj2, this.pipeManager, this.isGameOver);
+            const shouldTakeDamage = this.player.handleMaroonHitboxCollision(obj2, this.lowerPipeManager, this.isGameOver);
             // Check if Kilboy is in swing state (actively attacking)
             const isInAttackSwing = this.player.sprite.anims.isPlaying && this.player.sprite.anims.currentAnim?.key === "kilboy_swing_anim";
             // Prevent damage if player is in attack swing animation
@@ -613,12 +644,12 @@ class PlayScene extends BaseScene {
       );
     }
 
-    // Look ahead hitbox collision detection
-    if (this.player && this.player.lookAheadHitbox && this.pipeManager.pipes) {
+    // Look ahead hitbox collision detection for UpperPipeManager pipes
+    if (this.player && this.player.lookAheadHitbox) {
       // Set up overlap detection with purple cubes
       this.physics.add.overlap(
         this.player.lookAheadHitbox,
-        this.pipeManager.purpleHitboxes,
+        this.upperPipeManager.purpleHitboxes,
         () => {
           // Cube detected ahead
           this.player.cubesDetectedAhead = true;
@@ -631,7 +662,7 @@ class PlayScene extends BaseScene {
       // Set up overlap detection with pipe containers to trigger purple cube generation
       this.physics.add.overlap(
         this.player.lookAheadHitbox,
-        this.pipeManager.pipes,
+        this.upperPipeManager.pipes,
         (lookAhead: any, pipeContainer: any) => {
           console.log("[PLAY SCENE] Look ahead hitbox overlap detected");
           console.log("[PLAY SCENE] pipeContainer:", pipeContainer);
@@ -642,12 +673,43 @@ class PlayScene extends BaseScene {
           if ((pipeContainer as any).blueHitbox) {
             console.log("[PLAY SCENE] Detected upper pipe - generating purple cubes");
             // Generate purple cubes for upper pipe
-            this.pipeManager.generatePurpleCubesForPipe(pipeContainer);
+            this.upperPipeManager.generatePurpleCubesForPipe(pipeContainer);
     
           } else if ((pipeContainer as any).redHitbox) {
             console.log("[PLAY SCENE] Detected lower pipe - generating maroon cubes");
             // Generate maroon cubes for lower pipe
-            this.pipeManager.generateMaroonCubesForPipe(pipeContainer);
+            this.lowerPipeManager.generateMaroonCubesForPipe(pipeContainer);
+    
+          } else {
+            console.log("[PLAY SCENE] Unknown pipe type - neither blueHitbox nor redHitbox found");
+          }
+        },
+        undefined,
+        this
+      );
+    }
+
+    // Also check ChunkManager pipes for look-ahead detection
+    if (this.player && this.player.lookAheadHitbox && this.chunkManager.pipes) {
+      this.physics.add.overlap(
+        this.player.lookAheadHitbox,
+        this.chunkManager.pipes,
+        (lookAhead: any, pipeContainer: any) => {
+          console.log("[PLAY SCENE] ChunkManager pipe overlap detected");
+          console.log("[PLAY SCENE] pipeContainer:", pipeContainer);
+          console.log("[PLAY SCENE] blueHitbox:", (pipeContainer as any).blueHitbox);
+          console.log("[PLAY SCENE] redHitbox:", (pipeContainer as any).redHitbox);
+          
+          // Check if this is an upper pipe (has blueHitbox) or lower pipe (has redHitbox)
+          if ((pipeContainer as any).blueHitbox) {
+            console.log("[PLAY SCENE] Detected upper pipe - generating purple cubes");
+            // Generate purple cubes for upper pipe
+            this.upperPipeManager.generatePurpleCubesForPipe(pipeContainer);
+    
+          } else if ((pipeContainer as any).redHitbox) {
+            console.log("[PLAY SCENE] Detected lower pipe - generating maroon cubes");
+            // Generate maroon cubes for lower pipe
+            this.lowerPipeManager.generateMaroonCubesForPipe(pipeContainer);
     
           } else {
             console.log("[PLAY SCENE] Unknown pipe type - neither blueHitbox nor redHitbox found");
@@ -784,7 +846,7 @@ class PlayScene extends BaseScene {
 
   private stopAllAnimationsOnDeath(): void {
     this.uiManager.updateJumpRectanglesAtDeath();
-    this.pipeManager.stopAllBlueBoxAnimations();
+    this.upperPipeManager.stopAllBlueBoxAnimations();
   }
 
   private stopGravity(): void {
@@ -800,10 +862,10 @@ class PlayScene extends BaseScene {
   }
 
   private checkGreenHitboxOverlap(): void {
-    if (!this.player || !this.player.sprite || !this.pipeManager.greenHitboxes) return;
+    if (!this.player || !this.player.sprite || !this.lowerPipeManager.greenHitboxes) return;
     let isOverlapping = false;
     let firstOverlappingGreen: any = null;
-    this.pipeManager.greenHitboxes.getChildren().forEach((hitbox) => {
+    this.lowerPipeManager.greenHitboxes.getChildren().forEach((hitbox: any) => {
       if (this.player && this.player.sprite && this.physics.overlap(this.player.sprite, hitbox)) {
         // Check if the green hitbox is falling (has gravity applied)
         const hitboxBody = hitbox.body as Phaser.Physics.Arcade.Body;
@@ -839,9 +901,9 @@ class PlayScene extends BaseScene {
   }
 
   private checkBlueHitboxOverlap(): void {
-    if (!this.player || !this.player.upperHitbox || !this.pipeManager.blueHitboxes) return;
+    if (!this.player || !this.player.upperHitbox || !this.upperPipeManager.blueHitboxes) return;
     let isOverlapping = false;
-    this.pipeManager.blueHitboxes.getChildren().forEach((hitbox) => {
+    this.upperPipeManager.blueHitboxes.getChildren().forEach((hitbox: any) => {
       if (this.player && this.player.upperHitbox && this.physics.overlap(this.player.upperHitbox, hitbox)) {
         isOverlapping = true;
       }
@@ -902,11 +964,13 @@ class PlayScene extends BaseScene {
   private increaseDifficulty(): void {
     if (this.score === 1) {
       this.currentDifficulty = "normal";
-      this.pipeManager.setCurrentDifficulty("normal");
+      this.upperPipeManager.setCurrentDifficulty("normal");
+      this.lowerPipeManager.setCurrentDifficulty("normal");
     }
     if (this.score === 3) {
       this.currentDifficulty = "hard";
-      this.pipeManager.setCurrentDifficulty("hard");
+      this.upperPipeManager.setCurrentDifficulty("hard");
+      this.lowerPipeManager.setCurrentDifficulty("hard");
     }
   }
 

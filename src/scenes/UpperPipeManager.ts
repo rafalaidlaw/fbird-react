@@ -1,5 +1,4 @@
 import Phaser from "phaser";
-import StaticPipeManager from "./StaticPipeManager";
 
 export default class UpperPipeManager {
   private scene: Phaser.Scene;
@@ -28,9 +27,16 @@ export default class UpperPipeManager {
   // Configurable container position - controls where the pipe container is positioned
   public static readonly CONTAINER_Y_POSITION = -800; // Y position for pipe container (sky level)
 
-  // Use centralized Y placement from StaticPipeManager
-  public static get PIPE_HEIGHT() { return StaticPipeManager.getUpperPipeHeight(); }
-  public static get PIPE_Y_POSITION() { return StaticPipeManager.getUpperPipeY(); }
+  // Random offset for pipe height and position
+  private static readonly PIPE_HEIGHT_OFFSET = Math.floor(Math.random() * 801) - 400; // -400 to 400
+
+  // Base pipe height and position
+  private static readonly BASE_PIPE_HEIGHT = 800;
+  private static readonly BASE_PIPE_Y_POSITION = 0;
+
+  // Final randomized values
+  public static readonly PIPE_HEIGHT = UpperPipeManager.BASE_PIPE_HEIGHT + UpperPipeManager.PIPE_HEIGHT_OFFSET;
+  public static readonly PIPE_Y_POSITION = UpperPipeManager.BASE_PIPE_Y_POSITION + UpperPipeManager.PIPE_HEIGHT_OFFSET;
 
   constructor(scene: Phaser.Scene, config: any, difficulties: any, currentDifficulty: string) {
     this.scene = scene;
@@ -52,10 +58,9 @@ export default class UpperPipeManager {
     // Create upper pipe as a container with orange rectangle - extend to sky plane
     const upperPipeContainer = this.scene.add.container(x, y);
     // Add orange rectangle to container - extend to sky plane
-    const pipeHeight = StaticPipeManager.getUpperPipeHeightFromPosition(y);
-    const upperOrangeRect = this.scene.add.rectangle(0, 0, blueWidth, pipeHeight, 0xff8c00, 0); // alpha 0
+    const upperOrangeRect = this.scene.add.rectangle(0, 0, blueWidth, UpperPipeManager.PIPE_HEIGHT, 0xff8c00, 0); // alpha 0
     upperOrangeRect.setOrigin(0, 0); // Change to top-left origin so it extends downward
-    upperOrangeRect.setPosition(0, -pipeHeight); // Position it to extend from pipe position down to sky
+    upperOrangeRect.setPosition(0, -UpperPipeManager.PIPE_HEIGHT); // Position it to extend from pipe position down to sky
     upperPipeContainer.add(upperOrangeRect);
     // Add blue rectangle as child of the container
     const blueRect = this.scene.add.rectangle(0, 0, blueWidth, 32, 0x0000ff, 0);
@@ -74,9 +79,9 @@ export default class UpperPipeManager {
     
     // Create placeholder orange rectangle covering the entire pipe height
     const placeholderWidth = blueWidth; // Same as pipe width
-    const placeholderHeight = pipeHeight; // Full pipe height
+    const placeholderHeight = UpperPipeManager.PIPE_HEIGHT; // Full pipe height
     const placeholderX = -2; // Same X offset as purple cubes
-    const placeholderY = -pipeHeight; // Start from sky (top of pipe)
+    const placeholderY = -UpperPipeManager.PIPE_HEIGHT; // Start from sky (top of pipe)
     const placeholderRect = this.scene.add.rectangle(placeholderX, placeholderY, placeholderWidth, placeholderHeight, 0xff8c00, 1);
     placeholderRect.setOrigin(0, 0);
     upperPipeContainer.add(placeholderRect);
@@ -84,10 +89,10 @@ export default class UpperPipeManager {
     this.scene.physics.add.existing(upperPipeContainer);
     (upperPipeContainer.body as Phaser.Physics.Arcade.Body).setImmovable(true);
     // Calculate total height: pipe extends from sky to pipe position
-    // Total span: from -pipeHeight to +BLUE_HITBOX_HEIGHT
-    const totalContainerHeight = pipeHeight + UpperPipeManager.BLUE_HITBOX_HEIGHT; // pipe height + blue hitbox area
+    // Total span: from -PIPE_HEIGHT to +BLUE_HITBOX_HEIGHT
+    const totalContainerHeight = UpperPipeManager.PIPE_HEIGHT + UpperPipeManager.BLUE_HITBOX_HEIGHT; // pipe height + blue hitbox area
     (upperPipeContainer.body as Phaser.Physics.Arcade.Body).setSize(blueWidth, totalContainerHeight);
-    (upperPipeContainer.body as Phaser.Physics.Arcade.Body).setOffset(0, -pipeHeight); // Offset to start from sky
+    (upperPipeContainer.body as Phaser.Physics.Arcade.Body).setOffset(0, -UpperPipeManager.PIPE_HEIGHT); // Offset to start from sky
     this.pipes.add(upperPipeContainer as any);
     
     (upperPipeContainer as any).blueHitbox = blueHitbox;
@@ -130,8 +135,7 @@ export default class UpperPipeManager {
     }
     
     // Calculate dynamic height for purple cubes based on unified pipe height
-    const pipeHeight = StaticPipeManager.getUpperPipeHeightFromPosition(pipeContainer.y);
-    const purpleCubeAreaHeight = pipeHeight; // Fill entire pipe height
+    const purpleCubeAreaHeight = UpperPipeManager.PIPE_HEIGHT; // Fill entire pipe height
     const numRows = Math.floor(purpleCubeAreaHeight / hitboxWidth);
     
     // Create grid of colored hitboxes for this pipe (numColumns across, dynamic rows)
@@ -141,7 +145,7 @@ export default class UpperPipeManager {
       for (let col = 0; col < numColumns; col++) {
         // Set container-relative position to match placeholder rectangle
         const exactX = (col * hitboxWidth) - 2;
-        const exactY = -pipeHeight + (row * hitboxWidth); // Start from sky (top of pipe)
+        const exactY = -UpperPipeManager.PIPE_HEIGHT + (row * hitboxWidth); // Start from sky (top of pipe)
         
         // Safety check: ensure purple cubes don't extend beyond pipe bounds
         if (exactY + hitboxWidth > 0) { // Stop at pipe position (bottom of pipe)
@@ -156,6 +160,7 @@ export default class UpperPipeManager {
         this.scene.physics.add.existing(hitbox);
         (hitbox.body as Phaser.Physics.Arcade.Body).setImmovable(false); // Allow movement for gravity/velocity
         (hitbox.body as Phaser.Physics.Arcade.Body).setSize(hitboxWidth, hitboxWidth);
+        (hitbox.body as Phaser.Physics.Arcade.Body).setAllowGravity(true); // Enable gravity from creation
         hitbox.canDamage = true;
         pipeContainer.add(hitbox); // Add to container first
         this.purpleHitboxes.add(hitbox); // Then add to global group
