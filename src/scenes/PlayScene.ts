@@ -308,6 +308,37 @@ class PlayScene extends BaseScene {
       }
     });
     
+    // Check falling maroon hitboxes for X velocity and apply gravity/fading
+    this.lowerPipeManager.fallingMaroonHitboxes.getChildren().forEach((maroonHitbox: any) => {
+      if (maroonHitbox.body && maroonHitbox.body instanceof Phaser.Physics.Arcade.Body) {
+        const body = maroonHitbox.body as Phaser.Physics.Arcade.Body;
+        
+        // If maroon hitbox has significant velocity, apply gravity and fading
+        if (Math.abs(body.velocity.x) > 5) { // Higher threshold to avoid moving stationary hitboxes
+          // Enable gravity if not already enabled
+          if (!body.allowGravity) {
+            body.setAllowGravity(true);
+            body.setGravityY(800);
+          }
+          
+          // If Y velocity is zero, apply downward velocity to make it fall
+          if (Math.abs(body.velocity.y) < 0.1) {
+            body.setVelocityY(50); // Small downward velocity to start falling
+          }
+          
+          // Start fading if not already fading
+          if (maroonHitbox.alpha > 0) {
+            this.tweens.add({
+              targets: maroonHitbox,
+              alpha: 0,
+              duration: LowerPipeManager.MAROON_CUBE_FADE_DURATION,
+              ease: 'Linear',
+            });
+          }
+        }
+      }
+    });
+    
     // Update ground plane segments - recycle off-screen segments
     this.updateGroundSegments();
     

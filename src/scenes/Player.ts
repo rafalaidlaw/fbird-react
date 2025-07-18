@@ -505,6 +505,10 @@ export default class Player {
         // Update last maroon cube hit timestamp
         this.lastPurpleCubeHitTime = this.scene.time.now;
         if (maroon.body && maroon.body instanceof Phaser.Physics.Arcade.Body) {
+          // Move to falling group to prevent collision with player
+          (this.scene as any).lowerPipeManager.maroonHitboxes.remove(maroon);
+          (this.scene as any).lowerPipeManager.fallingMaroonHitboxes.add(maroon);
+          
           maroon.body.setAllowGravity(true);
           maroon.body.setGravityY(800);
           const randomX = Phaser.Math.Between(70, 110);
@@ -757,6 +761,10 @@ export default class Player {
       // Apply destruction effect to the hit maroon box
       const hitbox = maroonHitbox as Phaser.GameObjects.Rectangle;
       if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
+        // Move to falling group to prevent collision with player
+        (this.scene as any).lowerPipeManager.maroonHitboxes.remove(hitbox);
+        (this.scene as any).lowerPipeManager.fallingMaroonHitboxes.add(hitbox);
+        
         hitbox.body.moves = true; // Re-enable individual movement for destruction
         hitbox.body.setAllowGravity(true);
         hitbox.body.setGravityY(800);
@@ -798,6 +806,10 @@ export default class Player {
       // Apply gravity to the individual maroon hitbox (attack destruction)
       const hitbox = maroonHitbox as Phaser.GameObjects.Rectangle;
       if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
+        // Move to falling group to prevent collision with player
+        (this.scene as any).lowerPipeManager.maroonHitboxes.remove(hitbox);
+        (this.scene as any).lowerPipeManager.fallingMaroonHitboxes.add(hitbox);
+        
         hitbox.body.moves = true; // Re-enable individual movement for destruction
         hitbox.body.setAllowGravity(true);
         hitbox.body.setGravityY(800); // Stronger gravity (was 400)
