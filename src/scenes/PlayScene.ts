@@ -6,6 +6,7 @@ import LowerPipeManager from "./LowerPipeManager";
 import HitStop from "../HitStop";
 import PipeCutHitStop from "../PipeCutHitStop";
 import ChunkManager from "./ChunkManager";
+import LedgeGrabManager from "./LedgeGrabManager";
 
 const PIPES_TO_RENDER = 4;
 
@@ -65,6 +66,7 @@ class PlayScene extends BaseScene {
   private groundPlaneSegments: Phaser.GameObjects.Rectangle[] = [];
   private skyPlaneSegments: Phaser.GameObjects.Rectangle[] = [];
   private chunkManager!: ChunkManager;
+  private ledgeGrabManager!: LedgeGrabManager;
   
   // Make PLAYER_X_VELOCITY accessible to other classes
   public readonly PLAYER_X_VELOCITY = PLAYER_X_VELOCITY;
@@ -115,6 +117,9 @@ class PlayScene extends BaseScene {
     
     // Initialize ChunkManager with pipe managers
     this.chunkManager = new ChunkManager(this, this.config, this.upperPipeManager, this.lowerPipeManager);
+    
+    // Initialize LedgeGrabManager
+    this.ledgeGrabManager = new LedgeGrabManager(this, this.player, this.lowerPipeManager, this.pipeCutHitStop);
     
     this.createEnemies();
     this.createColiders();
@@ -677,6 +682,7 @@ class PlayScene extends BaseScene {
 
     // Look ahead hitbox collision detection for UpperPipeManager pipes
     if (this.player && this.player.lookAheadHitbox) {
+      
       // Set up overlap detection with purple cubes
       this.physics.add.overlap(
         this.player.lookAheadHitbox,
@@ -690,29 +696,22 @@ class PlayScene extends BaseScene {
         this
       );
 
+      // Set up ledge grab detection
+      this.ledgeGrabManager.setupLedgeGrabDetection();
+
       // Set up overlap detection with pipe containers to trigger purple cube generation
       this.physics.add.overlap(
         this.player.lookAheadHitbox,
         this.upperPipeManager.pipes,
         (lookAhead: any, pipeContainer: any) => {
-          console.log("[PLAY SCENE] Look ahead hitbox overlap detected");
-          console.log("[PLAY SCENE] pipeContainer:", pipeContainer);
-          console.log("[PLAY SCENE] blueHitbox:", (pipeContainer as any).blueHitbox);
-          console.log("[PLAY SCENE] redHitbox:", (pipeContainer as any).redHitbox);
           
           // Check if this is an upper pipe (has blueHitbox) or lower pipe (has redHitbox)
           if ((pipeContainer as any).blueHitbox) {
-            console.log("[PLAY SCENE] Detected upper pipe - generating purple cubes");
             // Generate purple cubes for upper pipe
             this.upperPipeManager.generatePurpleCubesForPipe(pipeContainer);
-    
           } else if ((pipeContainer as any).redHitbox) {
-            console.log("[PLAY SCENE] Detected lower pipe - generating maroon cubes");
             // Generate maroon cubes for lower pipe
             this.lowerPipeManager.generateMaroonCubesForPipe(pipeContainer);
-    
-          } else {
-            console.log("[PLAY SCENE] Unknown pipe type - neither blueHitbox nor redHitbox found");
           }
         },
         undefined,
@@ -726,24 +725,14 @@ class PlayScene extends BaseScene {
         this.player.lookAheadHitbox,
         this.chunkManager.pipes,
         (lookAhead: any, pipeContainer: any) => {
-          console.log("[PLAY SCENE] ChunkManager pipe overlap detected");
-          console.log("[PLAY SCENE] pipeContainer:", pipeContainer);
-          console.log("[PLAY SCENE] blueHitbox:", (pipeContainer as any).blueHitbox);
-          console.log("[PLAY SCENE] redHitbox:", (pipeContainer as any).redHitbox);
           
           // Check if this is an upper pipe (has blueHitbox) or lower pipe (has redHitbox)
           if ((pipeContainer as any).blueHitbox) {
-            console.log("[PLAY SCENE] Detected upper pipe - generating purple cubes");
             // Generate purple cubes for upper pipe
             this.upperPipeManager.generatePurpleCubesForPipe(pipeContainer);
-    
           } else if ((pipeContainer as any).redHitbox) {
-            console.log("[PLAY SCENE] Detected lower pipe - generating maroon cubes");
             // Generate maroon cubes for lower pipe
             this.lowerPipeManager.generateMaroonCubesForPipe(pipeContainer);
-    
-          } else {
-            console.log("[PLAY SCENE] Unknown pipe type - neither blueHitbox nor redHitbox found");
           }
         },
         undefined,
@@ -751,6 +740,8 @@ class PlayScene extends BaseScene {
       );
     }
   }
+
+
 
   private handleBlueBoxCollision(blueHitbox: any): void {
     // Handle blue box collision logic here
@@ -902,10 +893,56 @@ class PlayScene extends BaseScene {
         const hitboxBody = hitbox.body as Phaser.Physics.Arcade.Body;
         const isFalling = hitboxBody && hitboxBody.gravity.y > 0;
         
-        if (!isFalling) {
-          // Only allow standing on green hitbox if it's not falling
+        // Find the pipe container that owns this green hitbox
+        let pipeHasMaroonCubes = false;
+        let pipeContainer: any = null;
+        this.lowerPipeManager.pipes.getChildren().forEach((container: any) => {
+          if ((container as any).redHitbox === hitbox) {
+            pipeContainer = container;
+            // Check if maroon cubes have been spawned for this pipe
+            if ((container as any).maroonHitboxes && (container as any).maroonHitboxes.length > 0) {
+              pipeHasMaroonCubes = true;
+            }
+          }
+        });
+        
+        if (!isFalling && !pipeHasMaroonCubes) {
+          // Only allow standing on green hitbox if it's not falling AND no maroon cubes are spawned
           isOverlapping = true;
           if (!firstOverlappingGreen) firstOverlappingGreen = hitbox;
+        } else if (pipeHasMaroonCubes && !isFalling) {
+          // Trigger fall for green box when maroon cubes are spawned
+          console.log("[PLAY SCENE] Triggering green box fall due to maroon cube spawn");
+          if (pipeContainer && hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
+            // Make the redHitbox movable so it can fall
+            hitbox.body.setImmovable(false);
+            hitbox.body.setAllowGravity(true);
+            
+            // Add a tiny upward velocity before falling
+            hitbox.body.setVelocityY(-20);
+            hitbox.body.setGravityY(800);
+            
+            // Apply gravity multiplier after initial upward movement
+            this.time.delayedCall(100, () => {
+              if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
+                hitbox.body.setGravityY(800 * 3);
+              }
+            });
+            
+            this.tweens.add({
+              targets: hitbox,
+              alpha: 0,
+              duration: 500,
+              ease: 'Linear',
+            });
+            
+            this.tweens.add({
+              targets: hitbox,
+              angle: -45, // Rotate in the opposite direction from blue hitbox
+              duration: 500,
+              ease: 'Linear',
+            });
+          }
         }
       }
     });

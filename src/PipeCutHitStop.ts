@@ -29,13 +29,17 @@ export default class PipeCutHitStop {
   // Trigger hitstop for a duration in ms (default 10ms for pipe cutting feedback)
   // This is completely independent of animation frames - triggered purely by collision
   trigger(duration: number = 10, onEnd?: () => void) {
+    console.log(`[PIPE CUT HITSTOP] Trigger called with duration: ${duration}ms`);
     if (this.isActive) {
+      console.log("[PIPE CUT HITSTOP] Already active, returning early");
       return;
     }
+    console.log("[PIPE CUT HITSTOP] Starting hitstop effect");
     this.isActive = true;
 
     // No animation frame dependencies - this is purely collision-based feedback
 
+    console.log(`[PIPE CUT HITSTOP] Pausing ${this.pausedObjects.length} objects`);
     this.pausedObjects.forEach(entry => {
       const body = (entry.obj.body as Phaser.Physics.Arcade.Body | undefined);
       // Pause physics
@@ -46,6 +50,8 @@ export default class PipeCutHitStop {
         
         const player = (this.scene as any).player;
         const isPlayerSprite = player && entry.obj === player.sprite;
+        
+        console.log(`[PIPE CUT HITSTOP] Pausing object: ${entry.obj.name || 'unnamed'}, isPlayer: ${isPlayerSprite}`);
         
         body.setVelocity(0, 0);
         body.setGravity(0, 0);
@@ -90,6 +96,7 @@ export default class PipeCutHitStop {
       
       // No timers to resume since this is frame-independent
       this.isActive = false;
+      console.log("[PIPE CUT HITSTOP] Hitstop effect ended");
       
       // Force-set player X velocity one more time to ensure it's restored
       const player = (this.scene as any).player;

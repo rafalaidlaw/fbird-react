@@ -641,8 +641,15 @@ export default class PipeManager {
                }
              });
              
-             // Trigger fall for the green hitbox (red rectangle) associated with this pipe only if the rightmost column (col 3) is hit
-             if (hitCol === 3 && lowerPipe && (lowerPipe as any).redHitbox) {
+             
+             // Calculate the middle column dynamically
+             const middleColumn = Math.floor(numColumns / 2);
+             
+             // Check if any cube in the middle column has been hit (including the current hit cube)
+             const middleColumnHit = hitCol === middleColumn;
+             
+             // Trigger fall for the green hitbox (red rectangle) associated with this pipe when the middle column is hit
+             if (middleColumnHit && lowerPipe && (lowerPipe as any).redHitbox) {
                const redHitbox = (lowerPipe as any).redHitbox;
            
                if (redHitbox.body && redHitbox.body instanceof Phaser.Physics.Arcade.Body) {

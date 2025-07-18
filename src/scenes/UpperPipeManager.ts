@@ -28,15 +28,11 @@ export default class UpperPipeManager {
   public static readonly CONTAINER_Y_POSITION = -800; // Y position for pipe container (sky level)
 
   // Random offset for pipe height and position
+  private static readonly BASE_PIPE_HEIGHT = Math.ceil(800 / 16) * 16;
   private static readonly PIPE_HEIGHT_OFFSET = Math.floor(Math.random() * 801) - 400; // -400 to 400
-
-  // Base pipe height and position
-  private static readonly BASE_PIPE_HEIGHT = 800;
+  public static readonly PIPE_HEIGHT = Math.ceil((UpperPipeManager.BASE_PIPE_HEIGHT + UpperPipeManager.PIPE_HEIGHT_OFFSET) / 16) * 16;
   private static readonly BASE_PIPE_Y_POSITION = 0;
-
-  // Final randomized values
-  public static readonly PIPE_HEIGHT = UpperPipeManager.BASE_PIPE_HEIGHT + UpperPipeManager.PIPE_HEIGHT_OFFSET;
-  public static readonly PIPE_Y_POSITION = UpperPipeManager.BASE_PIPE_Y_POSITION + UpperPipeManager.PIPE_HEIGHT_OFFSET;
+  public static readonly PIPE_Y_POSITION = Math.ceil((UpperPipeManager.BASE_PIPE_Y_POSITION + UpperPipeManager.PIPE_HEIGHT_OFFSET) / 16) * 16;
 
   constructor(scene: Phaser.Scene, config: any, difficulties: any, currentDifficulty: string) {
     this.scene = scene;

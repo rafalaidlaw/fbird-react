@@ -34,9 +34,10 @@ export default class Player {
   private dashTween?: Phaser.Tweens.Tween;
   private hitstopCooldownActive: boolean = false;
   private lastPurpleCubeHitTime: number = 0;
-  private isHoldingSwingFrame: boolean = false;
+  public isHoldingSwingFrame: boolean = false;
   private swingFrameCheckTimer?: Phaser.Time.TimerEvent;
   public cubesDetectedAhead: boolean = false;
+  public isLedgeGrabbing: boolean = false;
   
   constructor(scene: Phaser.Scene, startPosition: { x: number, y: number }) {
     this.scene = scene;

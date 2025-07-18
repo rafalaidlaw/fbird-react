@@ -14,6 +14,7 @@ class PreloadScene extends Phaser.Scene {
     this.load.image("kilboy_swing_anim1", "assets/kilboy_swing_anim1.png");
     this.load.image("kilboy_swing_anim2", "assets/kilboy_swing_anim2.png");
     this.load.image("kilboy_swing_anim3", "assets/kilboy_swing_anim3.png");
+    this.load.image("kilboy_swing_ledgeGrab", "assets/kilboy_swing_ledgeGrab.png");
     //     this.load.spritesheet("kilboy", "assets/kilboy.png", {
     //       frameWidth: 63,
     //       frameHeight: 66,

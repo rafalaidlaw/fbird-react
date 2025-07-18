@@ -9,6 +9,7 @@ export default class LowerPipeManager {
   public greenHitboxes: Phaser.Physics.Arcade.Group;
   public maroonHitboxes: Phaser.Physics.Arcade.Group;
   public fallingMaroonHitboxes: Phaser.Physics.Arcade.Group;
+  public ledgeGrabHitboxes: Phaser.Physics.Arcade.Group;
 
   // Add these constants for column logic (same as original PipeManager)
   private static readonly PIPE_WIDTH = Math.ceil(78 / 16) * 16; // Always a multiple of 16
@@ -24,13 +25,13 @@ export default class LowerPipeManager {
 
   // Y placement constants for lower pipes
   private static readonly GROUND_Y_POSITION = 1000; // Ground plane Y position
+  private static readonly BASE_LOWER_PIPE_HEIGHT = Math.ceil(800 / 16) * 16;
   private static readonly LOWER_PIPE_HEIGHT_OFFSET = Math.floor(Math.random() * 801) - 400; // -400 to 400
-  private static readonly BASE_LOWER_PIPE_HEIGHT = 800;
   private static readonly BASE_LOWER_PIPE_Y_POSITION = 0;
 
   // Final randomized values for lower pipes
-  public static readonly LOWER_PIPE_HEIGHT = LowerPipeManager.BASE_LOWER_PIPE_HEIGHT + LowerPipeManager.LOWER_PIPE_HEIGHT_OFFSET;
-  public static readonly LOWER_PIPE_Y_POSITION = LowerPipeManager.BASE_LOWER_PIPE_Y_POSITION + LowerPipeManager.LOWER_PIPE_HEIGHT_OFFSET;
+  public static readonly LOWER_PIPE_HEIGHT = Math.ceil((LowerPipeManager.BASE_LOWER_PIPE_HEIGHT + LowerPipeManager.LOWER_PIPE_HEIGHT_OFFSET) / 16) * 16;
+  public static readonly LOWER_PIPE_Y_POSITION = Math.ceil((LowerPipeManager.BASE_LOWER_PIPE_Y_POSITION + LowerPipeManager.LOWER_PIPE_HEIGHT_OFFSET) / 16) * 16;
 
   // Static methods to access Y placement values for lower pipes
   public static getGroundYPosition(): number {
@@ -66,6 +67,7 @@ export default class LowerPipeManager {
     this.greenHitboxes = this.scene.physics.add.group();
     this.maroonHitboxes = this.scene.physics.add.group();
     this.fallingMaroonHitboxes = this.scene.physics.add.group();
+    this.ledgeGrabHitboxes = this.scene.physics.add.group();
   }
 
   // Create a lower pipe that extends to the ground plane
@@ -83,7 +85,7 @@ export default class LowerPipeManager {
     orangeRect.setOrigin(0, 0);
     orangeRect.setName('orangeRect'); // Give it a name for easy identification
     lowerPipeContainer.add(orangeRect);
-    const redRect = this.scene.add.rectangle(0, 0, blueWidth, 16, 0xff0000, 0);
+    const redRect = this.scene.add.rectangle(0, 0, blueWidth, 32, 0xff0000, 0);
     redRect.setOrigin(0, 0);
     lowerPipeContainer.add(redRect);
     // Initialize empty maroon hitboxes array for lower pipe (will be populated on-demand)
@@ -91,15 +93,24 @@ export default class LowerPipeManager {
     this.scene.physics.add.existing(lowerPipeContainer);
     (lowerPipeContainer.body as Phaser.Physics.Arcade.Body).setImmovable(true);
     (lowerPipeContainer.body as Phaser.Physics.Arcade.Body).setSize(blueWidth, lowerPipeHeight);
-    (lowerPipeContainer.body as Phaser.Physics.Arcade.Body).setOffset(0, 16);
+    (lowerPipeContainer.body as Phaser.Physics.Arcade.Body).setOffset(0, 32);
     // Create separate hitbox for red rectangle
-    const redHitbox = this.scene.add.rectangle(x, y, blueWidth, 16, 0x00ff00, 0.5);
+    const redHitbox = this.scene.add.rectangle(x, y, blueWidth, 32, 0x00ff00, 0.5);
     redHitbox.setOrigin(0, 0);
     this.scene.physics.add.existing(redHitbox);
     (redHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
     this.pipes.add(lowerPipeContainer as any);
     this.greenHitboxes.add(redHitbox);
     (lowerPipeContainer as any).redHitbox = redHitbox;
+    
+    // Create pink LedgeGrab hitbox (8x16) at the left edge of the green square
+    const ledgeGrabHitbox = this.scene.add.rectangle(x - 8, y + 16, 8, 16, 0xff69b4, 0.7); // pink
+    ledgeGrabHitbox.setOrigin(0, 0);
+    ledgeGrabHitbox.setName('LedgeGrab');
+    this.scene.physics.add.existing(ledgeGrabHitbox);
+    (ledgeGrabHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
+    this.ledgeGrabHitboxes.add(ledgeGrabHitbox);
+    (lowerPipeContainer as any).ledgeGrabHitbox = ledgeGrabHitbox;
     
     // Register lower pipe and hitbox with hitStop if available
     if ((this.scene as any).hitStop) {
@@ -127,7 +138,7 @@ export default class LowerPipeManager {
     orangeRect.setOrigin(0, 0);
     orangeRect.setName('orangeRect'); // Give it a name for easy identification
     groundPipeContainer.add(orangeRect);
-    const redRect = this.scene.add.rectangle(0, 0, blueWidth, 16, 0xff0000, 0);
+    const redRect = this.scene.add.rectangle(0, 0, blueWidth, 32, 0xff0000, 0);
     redRect.setOrigin(0, 0);
     groundPipeContainer.add(redRect);
     // Initialize empty maroon hitboxes array for ground pipe (will be populated on-demand)
@@ -135,15 +146,24 @@ export default class LowerPipeManager {
     this.scene.physics.add.existing(groundPipeContainer);
     (groundPipeContainer.body as Phaser.Physics.Arcade.Body).setImmovable(true);
     (groundPipeContainer.body as Phaser.Physics.Arcade.Body).setSize(blueWidth, height);
-    (groundPipeContainer.body as Phaser.Physics.Arcade.Body).setOffset(0, 16);
+    (groundPipeContainer.body as Phaser.Physics.Arcade.Body).setOffset(0, 32);
     // Create separate hitbox for red rectangle (green platform)
-    const redHitbox = this.scene.add.rectangle(x, groundY, blueWidth, 16, 0x00ff00, 0.5);
+    const redHitbox = this.scene.add.rectangle(x, groundY, blueWidth, 32, 0x00ff00, 0.5);
     redHitbox.setOrigin(0, 0);
     this.scene.physics.add.existing(redHitbox);
     (redHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
     this.pipes.add(groundPipeContainer as any);
     this.greenHitboxes.add(redHitbox);
     (groundPipeContainer as any).redHitbox = redHitbox;
+    
+    // Create pink LedgeGrab hitbox (8x16) at the left edge of the green square
+    const ledgeGrabHitbox = this.scene.add.rectangle(x - 8, groundY + 16, 8, 16, 0xff69b4, 0.7); // pink
+    ledgeGrabHitbox.setOrigin(0, 0);
+    ledgeGrabHitbox.setName('LedgeGrab');
+    this.scene.physics.add.existing(ledgeGrabHitbox);
+    (ledgeGrabHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
+    this.ledgeGrabHitboxes.add(ledgeGrabHitbox);
+    (groundPipeContainer as any).ledgeGrabHitbox = ledgeGrabHitbox;
     
     // Register ground pipe and hitbox with hitStop if available
     if ((this.scene as any).hitStop) {
@@ -158,15 +178,10 @@ export default class LowerPipeManager {
 
   // Generate maroon cubes for a specific lower pipe (same logic as original PipeManager)
   public generateMaroonCubesForPipe(pipeContainer: any): void {
-    console.log("[LOWER PIPE MANAGER] generateMaroonCubesForPipe called");
-    console.log("[LOWER PIPE MANAGER] pipeContainer:", pipeContainer);
-    console.log("[LOWER PIPE MANAGER] redHitbox:", (pipeContainer as any).redHitbox);
-    console.log("[LOWER PIPE MANAGER] blueHitbox:", (pipeContainer as any).blueHitbox);
     
     // Safety check: only generate maroon cubes for lower pipe containers
     // Lower pipes have redHitbox, upper pipes have blueHitbox
     if (!(pipeContainer as any).redHitbox) {
-      console.log("[LOWER PIPE MANAGER] Skipping - no redHitbox found (this might be an upper pipe)");
       return; // This is an upper pipe, skip
     }
 
@@ -188,7 +203,7 @@ export default class LowerPipeManager {
     
     // Calculate dynamic number of rows based on pipe height
     const pipeHeight = (pipeContainer.body as Phaser.Physics.Arcade.Body).height;
-    const availableHeight = pipeHeight - 16; // Subtract red rectangle height
+    const availableHeight = pipeHeight - 32; // Subtract red rectangle height
     const numRows = Math.floor(availableHeight / hitboxWidth);
     
 
@@ -200,7 +215,7 @@ export default class LowerPipeManager {
       for (let col = 0; col < numColumns; col++) {
         // Set container-relative position
         const exactX = (col * hitboxWidth);
-        const exactY = 16 + (row * hitboxWidth); // Start at 16 (below red rectangle)
+        const exactY = 32 + (row * hitboxWidth); // Start at 32 (below red rectangle)
         
         // Safety check: ensure maroon cubes don't extend beyond pipe bounds
         if (exactY + hitboxWidth > pipeHeight) {
@@ -228,6 +243,14 @@ export default class LowerPipeManager {
     if ((this.scene as any).hitStop) {
       pipeHitboxes.forEach(hitbox => (this.scene as any).hitStop.register(hitbox));
     }
+
+    // Destroy the ledge grab hitbox since maroon cubes have been spawned
+    if ((pipeContainer as any).ledgeGrabHitbox) {
+      console.log("[LOWER PIPE MANAGER] Destroying ledge grab hitbox due to maroon cube spawn");
+      this.ledgeGrabHitboxes.remove((pipeContainer as any).ledgeGrabHitbox);
+      (pipeContainer as any).ledgeGrabHitbox.destroy();
+      (pipeContainer as any).ledgeGrabHitbox = null;
+    }
   }
 
   /**
@@ -237,6 +260,7 @@ export default class LowerPipeManager {
    * @param isDashTriggered Whether this was triggered by dash
    */
   public triggerFallForHitboxesAbove(hitHitbox: Phaser.GameObjects.Rectangle, isGameOver: boolean, isDashTriggered: boolean = false) {
+    console.log(`[LOWER PIPE MANAGER] triggerFallForHitboxesAbove called with hitCol: ${hitHitbox.x}, isGameOver: ${isGameOver}`);
     this.scene.time.delayedCall(50, () => {
       this.pipes.getChildren().forEach((pipe: any) => {
         const lowerPipe = pipe as Phaser.GameObjects.Container;
@@ -283,11 +307,25 @@ export default class LowerPipeManager {
                }
              });
              
-             // Trigger fall for the green hitbox (red rectangle) associated with this pipe only if the rightmost column (col 3) is hit
-             if (hitCol === 3 && lowerPipe && (lowerPipe as any).redHitbox) {
+             // Calculate the middle column dynamically
+             const middleColumn = Math.floor(numColumns / 2);
+             
+             // Check if any cube in the middle column has been hit (including the current hit cube)
+             const middleColumnHit = hitCol === middleColumn;
+             
+             // Debug logging
+             console.log(`[LOWER PIPE MANAGER] COLUMN FALL CHECK - hitCol: ${hitCol}, middleColumn: ${middleColumn}, middleColumnHit: ${middleColumnHit}`);
+             
+             // Trigger fall for the green hitbox (red rectangle) associated with this pipe when the middle column is hit
+             if (middleColumnHit && lowerPipe && (lowerPipe as any).redHitbox) {
+               console.log(`[LOWER PIPE MANAGER] TRIGGERING GREEN BOX FALL WITH COLUMN!`);
                const redHitbox = (lowerPipe as any).redHitbox;
            
                if (redHitbox.body && redHitbox.body instanceof Phaser.Physics.Arcade.Body) {
+                 // Make the redHitbox movable so it can fall
+                 redHitbox.body.setImmovable(false);
+                 redHitbox.body.setAllowGravity(true);
+                 
                  // Add a tiny upward velocity before falling
                  redHitbox.body.setVelocityY(-20);
                  redHitbox.body.setGravityY(800);
@@ -382,5 +420,31 @@ export default class LowerPipeManager {
   // Set current difficulty
   public setCurrentDifficulty(currentDifficulty: string) {
     this.currentDifficulty = currentDifficulty;
+  }
+
+  /**
+   * Checks if any maroon cube in the first column (column 0) has been knocked away
+   * @param pipeContainer The pipe container to check
+   * @returns true if any first column cube has been knocked away, false otherwise
+   */
+  public hasFirstColumnBeenKnockedAway(pipeContainer: any): boolean {
+    if (!(pipeContainer as any).maroonHitboxes) {
+      return false; // No maroon cubes to check
+    }
+
+    const pipeHitboxes = (pipeContainer as any).maroonHitboxes as Phaser.GameObjects.Rectangle[];
+    const numColumns = LowerPipeManager.numColumns;
+    
+    // Check all cubes in the first column (column 0)
+    for (let row = 0; row < Math.floor(pipeHitboxes.length / numColumns); row++) {
+      const index = row * numColumns; // First column is at index 0, numColumns, 2*numColumns, etc.
+      const hitbox = pipeHitboxes[index];
+      
+      if (hitbox && this.fallingMaroonHitboxes.contains(hitbox)) {
+        return true; // Found a first column cube that has been knocked away
+      }
+    }
+    
+    return false; // No first column cubes have been knocked away
   }
 } 
