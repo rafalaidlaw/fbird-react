@@ -2,10 +2,11 @@ import Phaser from "phaser";
 import { CURRENT_PIPES_TEMPLATE } from '../templates/currentPipesTemplate';
 import UpperPipeManager from "./UpperPipeManager";
 import LowerPipeManager from "./LowerPipeManager";
+import FloatingPipeManager from "./FloatingPipeManager";
 
 // Chunk template interfaces
 interface PipeConfig {
-  type: 'upper' | 'lower' | 'ground';
+  type: 'upper' | 'lower' | 'ground' | 'floating';
   x: number; // Relative to chunk start
   y: number;
   hasPurpleCubes?: boolean;
@@ -40,13 +41,15 @@ export default class ChunkManager {
   // Direct references to pipe managers
   private upperPipeManager: UpperPipeManager;
   private lowerPipeManager: LowerPipeManager;
+  private floatingPipeManager: FloatingPipeManager;
   private combinedPipes: Phaser.Physics.Arcade.Group;
 
-  constructor(scene: Phaser.Scene, config: any, upperPipeManager: UpperPipeManager, lowerPipeManager: LowerPipeManager) {
+  constructor(scene: Phaser.Scene, config: any, upperPipeManager: UpperPipeManager, lowerPipeManager: LowerPipeManager, floatingPipeManager: FloatingPipeManager) {
     this.scene = scene;
     this.config = config;
     this.upperPipeManager = upperPipeManager;
     this.lowerPipeManager = lowerPipeManager;
+    this.floatingPipeManager = floatingPipeManager;
     this.combinedPipes = this.scene.physics.add.group();
     this.initializeChunkTemplates();
   }
@@ -114,7 +117,7 @@ export default class ChunkManager {
     const spawnedPipes: any[] = [];
     const spawnedEnemies: any[] = [];
 
-    // Create all upper and lower pipes from the template (skip ground pipes)
+    // Create all pipes from the template (skip ground pipes)
     template.pipes.forEach(pipeConfig => {
       const absoluteX = chunkX + pipeConfig.x;
       const absoluteY = pipeConfig.y;
@@ -127,6 +130,11 @@ export default class ChunkManager {
       } else if (pipeConfig.type === 'lower') {
         // console.log(`[CHUNK TEST] Creating lower pipe at (${absoluteX}, ${absoluteY}) from template`);
         const createdPipe = this.lowerPipeManager.createLowerPipe(absoluteX, absoluteY);
+        this.combinedPipes.add(createdPipe);
+        spawnedPipes.push(createdPipe);
+      } else if (pipeConfig.type === 'floating') {
+        // console.log(`[CHUNK TEST] Creating floating pipe at (${absoluteX}, ${absoluteY}) from template`);
+        const createdPipe = this.floatingPipeManager.createFloatingPipe(absoluteX, absoluteY);
         this.combinedPipes.add(createdPipe);
         spawnedPipes.push(createdPipe);
       } else if (pipeConfig.type === 'ground') {
@@ -156,7 +164,7 @@ export default class ChunkManager {
     const spawnedPipes: any[] = [];
     const spawnedEnemies: any[] = [];
 
-    // Create all upper and lower pipes from the template (skip ground pipes)
+    // Create all pipes from the template (skip ground pipes)
     template.pipes.forEach(pipeConfig => {
       const absoluteX = chunkX + pipeConfig.x;
       const absoluteY = pipeConfig.y;
@@ -169,6 +177,11 @@ export default class ChunkManager {
       } else if (pipeConfig.type === 'lower') {
         // console.log(`[CHUNK TEST] Creating lower pipe at (${absoluteX}, ${absoluteY}) from template`);
         const createdPipe = this.lowerPipeManager.createLowerPipe(absoluteX, absoluteY);
+        this.combinedPipes.add(createdPipe);
+        spawnedPipes.push(createdPipe);
+      } else if (pipeConfig.type === 'floating') {
+        // console.log(`[CHUNK TEST] Creating floating pipe at (${absoluteX}, ${absoluteY}) from template`);
+        const createdPipe = this.floatingPipeManager.createFloatingPipe(absoluteX, absoluteY);
         this.combinedPipes.add(createdPipe);
         spawnedPipes.push(createdPipe);
       } else if (pipeConfig.type === 'ground') {

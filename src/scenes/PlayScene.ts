@@ -3,6 +3,7 @@ import UIManager from "./UIManager";
 import Player from "./Player";
 import UpperPipeManager from "./UpperPipeManager";
 import LowerPipeManager from "./LowerPipeManager";
+import FloatingPipeManager from "./FloatingPipeManager";
 import HitStop from "../HitStop";
 import PipeCutHitStop from "../PipeCutHitStop";
 import ChunkManager from "./ChunkManager";
@@ -28,6 +29,7 @@ class PlayScene extends BaseScene {
   private player!: Player;
   private upperPipeManager!: UpperPipeManager;
   private lowerPipeManager!: LowerPipeManager;
+  private floatingPipeManager!: FloatingPipeManager;
   private isTouchingBlueHitbox: boolean = false;
   private isPaused: boolean = false;
   private isGameOver: boolean = false;
@@ -114,9 +116,10 @@ class PlayScene extends BaseScene {
     
     this.upperPipeManager = new UpperPipeManager(this, this.config, this.difficulties, this.currentDifficulty);
     this.lowerPipeManager = new LowerPipeManager(this, this.config, this.difficulties, this.currentDifficulty);
+    this.floatingPipeManager = new FloatingPipeManager(this, this.config, this.difficulties, this.currentDifficulty);
     
     // Initialize ChunkManager with pipe managers
-    this.chunkManager = new ChunkManager(this, this.config, this.upperPipeManager, this.lowerPipeManager);
+    this.chunkManager = new ChunkManager(this, this.config, this.upperPipeManager, this.lowerPipeManager, this.floatingPipeManager);
     
     // Initialize LedgeGrabManager
     this.ledgeGrabManager = new LedgeGrabManager(this, this.player, this.lowerPipeManager, this.pipeCutHitStop);
@@ -142,6 +145,7 @@ class PlayScene extends BaseScene {
     // Recycle static pipes that are far behind the player
     this.upperPipeManager.recyclePipes(this.player.sprite.x, 1000);
     this.lowerPipeManager.recyclePipes(this.player.sprite.x, 1000);
+    this.floatingPipeManager.recyclePipes(this.player.sprite.x, 1000);
     // Recycle chunks that are far behind the player
     this.chunkManager.recycleChunks(this.player.sprite.x, 1000);
     this.checkGreenHitboxOverlap();

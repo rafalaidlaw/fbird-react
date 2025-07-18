@@ -2,7 +2,7 @@ import UpperPipeManager from '../scenes/UpperPipeManager';
 
 // Define the interfaces locally since they're not exported from ChunkManager
 interface PipeConfig {
-  type: 'upper' | 'lower' | 'ground';
+  type: 'upper' | 'lower' | 'ground' | 'floating';
   x: number; // Relative to chunk start
   y: number;
   hasPurpleCubes?: boolean;
@@ -32,6 +32,9 @@ export const CURRENT_PIPES_TEMPLATE: ChunkTemplate = {
     // First pipe pair
     { type: 'upper' as const, x: 200, y: UpperPipeManager.PIPE_Y_POSITION },  // Uses configurable Y position
     { type: 'lower' as const, x: 200, y: UpperPipeManager.PIPE_Y_POSITION + 200 },  // Lower pipe positioned below upper pipe
+    
+    // Floating pipe (testing)
+    { type: 'floating' as const, x: 400, y: UpperPipeManager.PIPE_Y_POSITION + 100 },  // Floating pipe in the middle
     
     // Second pipe pair (further ahead)
     { type: 'upper' as const, x: 600, y: UpperPipeManager.PIPE_Y_POSITION },  // Uses configurable Y position

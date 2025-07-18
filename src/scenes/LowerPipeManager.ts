@@ -104,7 +104,7 @@ export default class LowerPipeManager {
     (lowerPipeContainer as any).redHitbox = redHitbox;
     
     // Create pink LedgeGrab hitbox (8x16) at the left edge of the green square
-    const ledgeGrabHitbox = this.scene.add.rectangle(x - 8, y + 16, 8, 16, 0xff69b4, 0.7); // pink
+    const ledgeGrabHitbox = this.scene.add.rectangle(x - 8, y, 8, 16, 0xff69b4, 0.7); // pink
     ledgeGrabHitbox.setOrigin(0, 0);
     ledgeGrabHitbox.setName('LedgeGrab');
     this.scene.physics.add.existing(ledgeGrabHitbox);
@@ -157,7 +157,7 @@ export default class LowerPipeManager {
     (groundPipeContainer as any).redHitbox = redHitbox;
     
     // Create pink LedgeGrab hitbox (8x16) at the left edge of the green square
-    const ledgeGrabHitbox = this.scene.add.rectangle(x - 8, groundY + 16, 8, 16, 0xff69b4, 0.7); // pink
+    const ledgeGrabHitbox = this.scene.add.rectangle(x - 8, groundY, 8, 16, 0xff69b4, 0.7); // pink
     ledgeGrabHitbox.setOrigin(0, 0);
     ledgeGrabHitbox.setName('LedgeGrab');
     this.scene.physics.add.existing(ledgeGrabHitbox);
