@@ -106,7 +106,7 @@ export const CURRENT_PIPES_TEMPLATE: ChunkTemplate = {
     // { type: 'lower' as const, x: 200, y: UpperPipeManager.PIPE_Y_POSITION + 200 },  // Lower pipe positioned below upper pipe
     
     // Floating pipe (testing) - can use custom config: createFloatingPipe(x, y, PIPE_CONFIGS.floating)
-    { type: 'floating' as const, x: 0, y: 850 },  // Floating pipe 50 pixels above ground (ground is at Y=1000)
+    { type: 'floating' as const, x: 0, y: 750 },  // Floating pipe 50 pixels above ground (ground is at Y=1000)
     
     // Second pipe pair (standard configuration) - commented out for testing
     // { type: 'upper' as const, x: 600, y: UpperPipeManager.PIPE_Y_POSITION },  // Uses configurable Y position

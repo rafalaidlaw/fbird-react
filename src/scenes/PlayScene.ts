@@ -710,8 +710,9 @@ class PlayScene extends BaseScene {
         (lookAhead: any, pipeContainer: any) => {
           
           // Check if this is an upper pipe (has blueHitbox) or lower pipe (has redHitbox)
-          if ((pipeContainer as any).blueHitbox) {
-            // Generate purple cubes for upper pipe
+          // Floating pipes have both blueHitbox and greenHitbox, so we need to check for greenHitbox to exclude them
+          if ((pipeContainer as any).blueHitbox && !(pipeContainer as any).greenHitbox) {
+            // Generate purple cubes for upper pipe (but not floating pipes)
             this.upperPipeManager.generatePurpleCubesForPipe(pipeContainer);
           } else if ((pipeContainer as any).redHitbox) {
             // Generate maroon cubes for lower pipe
@@ -731,8 +732,9 @@ class PlayScene extends BaseScene {
         (lookAhead: any, pipeContainer: any) => {
           
           // Check if this is an upper pipe (has blueHitbox) or lower pipe (has redHitbox)
-          if ((pipeContainer as any).blueHitbox) {
-            // Generate purple cubes for upper pipe
+          // Floating pipes have both blueHitbox and greenHitbox, so we need to check for greenHitbox to exclude them
+          if ((pipeContainer as any).blueHitbox && !(pipeContainer as any).greenHitbox) {
+            // Generate purple cubes for upper pipe (but not floating pipes)
             this.upperPipeManager.generatePurpleCubesForPipe(pipeContainer);
           } else if ((pipeContainer as any).redHitbox) {
             // Generate maroon cubes for lower pipe
@@ -888,68 +890,85 @@ class PlayScene extends BaseScene {
   }
 
   private checkGreenHitboxOverlap(): void {
-    if (!this.player || !this.player.sprite || !this.lowerPipeManager.greenHitboxes) return;
+    if (!this.player || !this.player.sprite) return;
     let isOverlapping = false;
     let firstOverlappingGreen: any = null;
-    this.lowerPipeManager.greenHitboxes.getChildren().forEach((hitbox: any) => {
-      if (this.player && this.player.sprite && this.physics.overlap(this.player.sprite, hitbox)) {
-        // Check if the green hitbox is falling (has gravity applied)
-        const hitboxBody = hitbox.body as Phaser.Physics.Arcade.Body;
-        const isFalling = hitboxBody && hitboxBody.gravity.y > 0;
-        
-        // Find the pipe container that owns this green hitbox
-        let pipeHasMaroonCubes = false;
-        let pipeContainer: any = null;
-        this.lowerPipeManager.pipes.getChildren().forEach((container: any) => {
-          if ((container as any).redHitbox === hitbox) {
-            pipeContainer = container;
-            // Check if maroon cubes have been spawned for this pipe
-            if ((container as any).maroonHitboxes && (container as any).maroonHitboxes.length > 0) {
-              pipeHasMaroonCubes = true;
+    
+    // Check lower pipe green hitboxes
+    if (this.lowerPipeManager.greenHitboxes) {
+      this.lowerPipeManager.greenHitboxes.getChildren().forEach((hitbox: any) => {
+        if (this.player && this.player.sprite && this.physics.overlap(this.player.sprite, hitbox)) {
+          // Check if the green hitbox is falling (has gravity applied)
+          const hitboxBody = hitbox.body as Phaser.Physics.Arcade.Body;
+          const isFalling = hitboxBody && hitboxBody.gravity.y > 0;
+          
+          // Find the pipe container that owns this green hitbox
+          let pipeHasMaroonCubes = false;
+          let pipeContainer: any = null;
+          this.lowerPipeManager.pipes.getChildren().forEach((container: any) => {
+            if ((container as any).redHitbox === hitbox) {
+              pipeContainer = container;
+              // Check if maroon cubes have been spawned for this pipe
+              if ((container as any).maroonHitboxes && (container as any).maroonHitboxes.length > 0) {
+                pipeHasMaroonCubes = true;
+              }
+            }
+          });
+          
+          if (!isFalling && !pipeHasMaroonCubes) {
+            // Only allow standing on green hitbox if it's not falling AND no maroon cubes are spawned
+            isOverlapping = true;
+            if (!firstOverlappingGreen) firstOverlappingGreen = hitbox;
+          } else if (pipeHasMaroonCubes && !isFalling) {
+            // Trigger fall for green box when maroon cubes are spawned
+            console.log("[PLAY SCENE] Triggering green box fall due to maroon cube spawn");
+            if (pipeContainer && hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
+              // Make the redHitbox movable so it can fall
+              hitbox.body.setImmovable(false);
+              hitbox.body.setAllowGravity(true);
+              
+              // Add a tiny upward velocity before falling
+              hitbox.body.setVelocityY(-20);
+              hitbox.body.setGravityY(800);
+              
+              // Apply gravity multiplier after initial upward movement
+              this.time.delayedCall(100, () => {
+                if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
+                  hitbox.body.setGravityY(800 * 3);
+                }
+              });
+              
+              this.tweens.add({
+                targets: hitbox,
+                alpha: 0,
+                duration: 500,
+                ease: 'Linear',
+              });
+              
+              this.tweens.add({
+                targets: hitbox,
+                angle: -45, // Rotate in the opposite direction from blue hitbox
+                duration: 500,
+                ease: 'Linear',
+              });
             }
           }
-        });
-        
-        if (!isFalling && !pipeHasMaroonCubes) {
-          // Only allow standing on green hitbox if it's not falling AND no maroon cubes are spawned
+        }
+      });
+    }
+    
+    // Check floating pipe green hitboxes
+    if (this.floatingPipeManager.greenHitboxes) {
+      this.floatingPipeManager.greenHitboxes.getChildren().forEach((hitbox: any) => {
+        if (this.player && this.player.sprite && this.physics.overlap(this.player.sprite, hitbox)) {
+          // For floating pipes, we don't need to check for falling or maroon cubes
+          // Just allow standing on the green platform
           isOverlapping = true;
           if (!firstOverlappingGreen) firstOverlappingGreen = hitbox;
-        } else if (pipeHasMaroonCubes && !isFalling) {
-          // Trigger fall for green box when maroon cubes are spawned
-          console.log("[PLAY SCENE] Triggering green box fall due to maroon cube spawn");
-          if (pipeContainer && hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
-            // Make the redHitbox movable so it can fall
-            hitbox.body.setImmovable(false);
-            hitbox.body.setAllowGravity(true);
-            
-            // Add a tiny upward velocity before falling
-            hitbox.body.setVelocityY(-20);
-            hitbox.body.setGravityY(800);
-            
-            // Apply gravity multiplier after initial upward movement
-            this.time.delayedCall(100, () => {
-              if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
-                hitbox.body.setGravityY(800 * 3);
-              }
-            });
-            
-            this.tweens.add({
-              targets: hitbox,
-              alpha: 0,
-              duration: 500,
-              ease: 'Linear',
-            });
-            
-            this.tweens.add({
-              targets: hitbox,
-              angle: -45, // Rotate in the opposite direction from blue hitbox
-              duration: 500,
-              ease: 'Linear',
-            });
-          }
         }
-      }
-    });
+      });
+    }
+    
     if (isOverlapping) {
       (this.player.sprite.body as Phaser.Physics.Arcade.Body).setGravityY(0);
       (this.player.sprite.body as Phaser.Physics.Arcade.Body).setVelocityY(0);
@@ -961,7 +980,7 @@ class PlayScene extends BaseScene {
       }
       // Set Kilboy's y position to a constant offset above the green box
       if (firstOverlappingGreen) {
-        this.player.sprite.y = firstOverlappingGreen.y - 48; // Tweak this offset as needed
+        this.player.sprite.y = firstOverlappingGreen.y - 64; // 16 pixels above the green hitbox
       }
     } else {
       // Only reset gravity if the player's gravity multiplier system hasn't applied enhanced gravity
@@ -973,13 +992,26 @@ class PlayScene extends BaseScene {
   }
 
   private checkBlueHitboxOverlap(): void {
-    if (!this.player || !this.player.upperHitbox || !this.upperPipeManager.blueHitboxes) return;
+    if (!this.player || !this.player.upperHitbox) return;
     let isOverlapping = false;
-    this.upperPipeManager.blueHitboxes.getChildren().forEach((hitbox: any) => {
-      if (this.player && this.player.upperHitbox && this.physics.overlap(this.player.upperHitbox, hitbox)) {
-        isOverlapping = true;
-      }
-    });
+    
+    // Check upper pipe blue hitboxes
+    if (this.upperPipeManager.blueHitboxes) {
+      this.upperPipeManager.blueHitboxes.getChildren().forEach((hitbox: any) => {
+        if (this.player && this.player.upperHitbox && this.physics.overlap(this.player.upperHitbox, hitbox)) {
+          isOverlapping = true;
+        }
+      });
+    }
+    
+    // Check floating pipe blue hitboxes
+    if (this.floatingPipeManager.blueHitboxes) {
+      this.floatingPipeManager.blueHitboxes.getChildren().forEach((hitbox: any) => {
+        if (this.player && this.player.upperHitbox && this.physics.overlap(this.player.upperHitbox, hitbox)) {
+          isOverlapping = true;
+        }
+      });
+    }
     if (isOverlapping && !this.isTouchingBlueHitbox) {
       (this.player.sprite.body as Phaser.Physics.Arcade.Body).setVelocityY(25);
       // Reset gravity to normal when hitting blue box

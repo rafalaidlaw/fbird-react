@@ -1,55 +1,80 @@
 import Phaser from "phaser";
-import UpperPipeManager from "./UpperPipeManager";
 
 export default class FloatingPipeManager {
   private scene: Phaser.Scene;
   public pipes: Phaser.Physics.Arcade.Group;
+  public greenHitboxes: Phaser.Physics.Arcade.Group;
   public blueHitboxes: Phaser.Physics.Arcade.Group;
 
-  // References to existing pipe managers
-  private upperPipeManager: UpperPipeManager;
-
-  // Floating pipe dimensions
-  private static readonly PIPE_HEIGHT = 80; // Height of pipe
-
-  constructor(scene: Phaser.Scene, config: any, difficulties: any, currentDifficulty: string, upperPipeManager: UpperPipeManager, lowerPipeManager: any) {
+  constructor(scene: Phaser.Scene, config: any, difficulties: any, currentDifficulty: string, upperPipeManager: any, lowerPipeManager: any) {
     this.scene = scene;
-    this.upperPipeManager = upperPipeManager;
     this.pipes = this.scene.physics.add.group();
+    this.greenHitboxes = this.scene.physics.add.group();
     this.blueHitboxes = this.scene.physics.add.group();
   }
 
   // Create a floating pipe at the specified position
-  createFloatingPipe(x: number, y: number, upperPipeConfig?: any, lowerPipeConfig?: any): any {
+  createFloatingPipe(x: number, y: number): any {
     // Create main floating pipe container
     const floatingPipeContainer = this.scene.add.container(x, y);
     
-    // Create an upper pipe (purple cubes + blue platform) with optional config
-    const upperPipe = this.upperPipeManager.createUpperPipe(x, y, upperPipeConfig);
-    floatingPipeContainer.add(upperPipe);
-    (floatingPipeContainer as any).upperPipe = upperPipe;
+    // Create green walkable platform on top
+    const greenPlatform = this.scene.add.rectangle(
+      40, 
+      16, // Position at top of container
+      80, 
+      32, 
+      0x66ff00
+    );
+    floatingPipeContainer.add(greenPlatform);
     
-    // Add the blue hitbox to our group for easy access
-    if ((upperPipe as any).blueHitbox) {
-      this.blueHitboxes.add((upperPipe as any).blueHitbox);
-      (floatingPipeContainer as any).blueHitbox = (upperPipe as any).blueHitbox;
-    }
+    // Create blue ceiling at the bottom
+    const blueCeiling = this.scene.add.rectangle(
+      40, 
+      184, // Position at bottom of container (200 - 16)
+      80, 
+      32, 
+      0x00ffff // Same cyan color as upper pipe blue hitbox
+    );
+    floatingPipeContainer.add(blueCeiling);
+    
+    // Create separate physics body for blue ceiling detection
+    const blueHitbox = this.scene.add.rectangle(
+      x + 40, // Absolute world position
+      y + 184, // Absolute world position
+      80, 
+      32, 
+      0x00ffff, // Same cyan color as upper pipe blue hitbox
+      0.5 // Semi-transparent for debugging
+    );
+    this.scene.physics.add.existing(blueHitbox);
+    (blueHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
+    (blueHitbox.body as Phaser.Physics.Arcade.Body).pushable = false;
+    this.blueHitboxes.add(blueHitbox);
+    (floatingPipeContainer as any).blueHitbox = blueHitbox;
+    
+    // Create separate physics body for green platform detection
+    const greenHitbox = this.scene.add.rectangle(
+      x + 40, // Absolute world position
+      y + 16, // Absolute world position
+      80, 
+      32, 
+      0x66ff00, 
+      0.5 // Semi-transparent for debugging
+    );
+    this.scene.physics.add.existing(greenHitbox);
+    (greenHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
+    this.greenHitboxes.add(greenHitbox);
+    (floatingPipeContainer as any).greenHitbox = greenHitbox;
     
     // Set up physics for the container
     this.scene.physics.add.existing(floatingPipeContainer);
     (floatingPipeContainer.body as Phaser.Physics.Arcade.Body).setImmovable(true);
-    (floatingPipeContainer.body as Phaser.Physics.Arcade.Body).setSize(80, FloatingPipeManager.PIPE_HEIGHT);
+    (floatingPipeContainer.body as Phaser.Physics.Arcade.Body).setSize(80, 200);
     
     this.pipes.add(floatingPipeContainer as any);
     
     return floatingPipeContainer;
-  }
-
-  // Generate purple cubes for the upper pipe
-  public generatePurpleCubesForPipe(pipeContainer: any): void {
-    if ((pipeContainer as any).upperPipe) {
-      this.upperPipeManager.generatePurpleCubesForPipe((pipeContainer as any).upperPipe);
-    }
   }
 
   // Remove pipes that are far behind the player (for recycling)
@@ -63,7 +88,13 @@ export default class FloatingPipeManager {
     });
     
     pipesToRemove.forEach(pipe => {
-      // Remove associated hitboxes
+      // Remove associated green hitbox
+      if ((pipe as any).greenHitbox) {
+        this.greenHitboxes.remove((pipe as any).greenHitbox);
+        (pipe as any).greenHitbox.destroy();
+      }
+      
+      // Remove associated blue hitbox
       if ((pipe as any).blueHitbox) {
         this.blueHitboxes.remove((pipe as any).blueHitbox);
         (pipe as any).blueHitbox.destroy();
