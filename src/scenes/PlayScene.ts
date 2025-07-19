@@ -116,7 +116,7 @@ class PlayScene extends BaseScene {
     
     this.upperPipeManager = new UpperPipeManager(this, this.config, this.difficulties, this.currentDifficulty);
     this.lowerPipeManager = new LowerPipeManager(this, this.config, this.difficulties, this.currentDifficulty);
-    this.floatingPipeManager = new FloatingPipeManager(this, this.config, this.difficulties, this.currentDifficulty);
+    this.floatingPipeManager = new FloatingPipeManager(this, this.config, this.difficulties, this.currentDifficulty, this.upperPipeManager, this.lowerPipeManager);
     
     // Initialize ChunkManager with pipe managers
     this.chunkManager = new ChunkManager(this, this.config, this.upperPipeManager, this.lowerPipeManager, this.floatingPipeManager);

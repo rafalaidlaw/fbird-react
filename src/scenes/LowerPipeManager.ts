@@ -1,5 +1,46 @@
 import Phaser from "phaser";
 
+// Configuration interface for LowerPipeManager
+export interface LowerPipeConfig {
+  // Dimensions
+  pipeWidth?: number;
+  hitboxWidth?: number;
+  greenHitboxHeight?: number;
+  ledgeGrabWidth?: number;
+  ledgeGrabHeight?: number;
+  
+  // Positioning
+  groundYPosition?: number;
+  baseLowerPipeHeight?: number;
+  baseLowerPipeYPosition?: number;
+  lowerPipeHeightOffset?: number;
+  
+  // Animation
+  maroonCubeFadeDuration?: number;
+  
+  // Colors
+  colors?: {
+    orange?: number;
+    red?: number;
+    green?: number;
+    pink?: number;
+  };
+  
+  // Physics
+  physics?: {
+    gravity?: number;
+    immovable?: boolean;
+    pushable?: boolean;
+  };
+  
+  // Offsets
+  offsets?: {
+    greenHitboxX?: number;
+    ledgeGrabX?: number;
+    maroonCubeX?: number;
+  };
+}
+
 export default class LowerPipeManager {
   private scene: Phaser.Scene;
   private config: any;
@@ -10,6 +51,43 @@ export default class LowerPipeManager {
   public maroonHitboxes: Phaser.Physics.Arcade.Group;
   public fallingMaroonHitboxes: Phaser.Physics.Arcade.Group;
   public ledgeGrabHitboxes: Phaser.Physics.Arcade.Group;
+  
+  // Default configuration that matches current hardcoded values
+  private static readonly DEFAULT_CONFIG: LowerPipeConfig = {
+    pipeWidth: Math.ceil(78 / 16) * 16,
+    hitboxWidth: 16,
+    greenHitboxHeight: 32,
+    ledgeGrabWidth: 8,
+    ledgeGrabHeight: 16,
+    groundYPosition: 1000,
+    baseLowerPipeHeight: Math.ceil(800 / 16) * 16,
+    baseLowerPipeYPosition: 0,
+    lowerPipeHeightOffset: 0, // No random offset for now
+    maroonCubeFadeDuration: 1000,
+    colors: {
+      orange: 0xff8c00,
+      red: 0xff0000,
+      green: 0x00ff00,
+      pink: 0xff69b4
+    },
+    physics: {
+      gravity: 400,
+      immovable: true,
+      pushable: false
+    },
+    offsets: {
+      greenHitboxX: 0,
+      ledgeGrabX: -8,
+      maroonCubeX: 0
+    }
+  };
+  
+  // Instance configuration (merged with defaults)
+  private pipeConfig: LowerPipeConfig;
+  
+  // Cached calculated values to ensure consistency
+  private cachedLowerPipeHeight: number;
+  private cachedLowerPipeYPosition: number;
 
   // Add these constants for column logic (same as original PipeManager)
   private static readonly PIPE_WIDTH = Math.ceil(78 / 16) * 16; // Always a multiple of 16
@@ -58,11 +136,19 @@ export default class LowerPipeManager {
     return LowerPipeManager.BASE_LOWER_PIPE_Y_POSITION;
   }
 
-  constructor(scene: Phaser.Scene, config: any, difficulties: any, currentDifficulty: string) {
+  constructor(scene: Phaser.Scene, config: any, difficulties: any, currentDifficulty: string, pipeConfig?: LowerPipeConfig) {
     this.scene = scene;
     this.config = config;
     this.difficulties = difficulties;
     this.currentDifficulty = currentDifficulty;
+    
+    // Merge provided config with defaults
+    this.pipeConfig = { ...LowerPipeManager.DEFAULT_CONFIG, ...pipeConfig };
+    
+    // Use the original static values for now
+    this.cachedLowerPipeHeight = LowerPipeManager.LOWER_PIPE_HEIGHT;
+    this.cachedLowerPipeYPosition = LowerPipeManager.LOWER_PIPE_Y_POSITION;
+    
     this.pipes = this.scene.physics.add.group();
     this.greenHitboxes = this.scene.physics.add.group();
     this.maroonHitboxes = this.scene.physics.add.group();
@@ -71,44 +157,53 @@ export default class LowerPipeManager {
   }
 
   // Create a lower pipe that extends to the ground plane
-  createLowerPipe(x: number, y: number): any {
-    const blueWidth = LowerPipeManager.PIPE_WIDTH;
+  createLowerPipe(x: number, y: number, overrideConfig?: Partial<LowerPipeConfig>): any {
+    // Merge override config with instance config
+    const config = { ...this.pipeConfig, ...overrideConfig };
+    
+    const pipeWidth = this.pipeWidth;
+    const greenHitboxHeight = this.greenHitboxHeight;
+    const colors = this.colors;
+    const physics = this.physics;
+    const offsets = this.offsets;
+    const groundY = this.groundYPosition;
+    const ledgeGrabWidth = this.ledgeGrabWidth;
+    const ledgeGrabHeight = this.ledgeGrabHeight;
     
 
     
     // Create lower pipe as a container with orange rectangle - extend to ground
-    const groundY = LowerPipeManager.GROUND_Y_POSITION; // Use centralized ground Y position
     const lowerPipeHeight = groundY - y; // Height needed to reach ground from pipe position
     
     const lowerPipeContainer = this.scene.add.container(x, y);
-    const orangeRect = this.scene.add.rectangle(0, 0, blueWidth, lowerPipeHeight, 0xff8c00);
+    const orangeRect = this.scene.add.rectangle(0, 0, pipeWidth, lowerPipeHeight, colors.orange);
     orangeRect.setOrigin(0, 0);
     orangeRect.setName('orangeRect'); // Give it a name for easy identification
     lowerPipeContainer.add(orangeRect);
-    const redRect = this.scene.add.rectangle(0, 0, blueWidth, 32, 0xff0000, 0);
+    const redRect = this.scene.add.rectangle(0, 0, pipeWidth, greenHitboxHeight, colors.red, 0);
     redRect.setOrigin(0, 0);
     lowerPipeContainer.add(redRect);
     // Initialize empty maroon hitboxes array for lower pipe (will be populated on-demand)
     (lowerPipeContainer as any).maroonHitboxes = [];
     this.scene.physics.add.existing(lowerPipeContainer);
-    (lowerPipeContainer.body as Phaser.Physics.Arcade.Body).setImmovable(true);
-    (lowerPipeContainer.body as Phaser.Physics.Arcade.Body).setSize(blueWidth, lowerPipeHeight);
-    (lowerPipeContainer.body as Phaser.Physics.Arcade.Body).setOffset(0, 32);
+    (lowerPipeContainer.body as Phaser.Physics.Arcade.Body).setImmovable(physics.immovable || true);
+    (lowerPipeContainer.body as Phaser.Physics.Arcade.Body).setSize(pipeWidth, lowerPipeHeight);
+    (lowerPipeContainer.body as Phaser.Physics.Arcade.Body).setOffset(0, 0);
     // Create separate hitbox for red rectangle
-    const redHitbox = this.scene.add.rectangle(x, y, blueWidth, 32, 0x00ff00, 0.5);
+    const redHitbox = this.scene.add.rectangle(x + (offsets.greenHitboxX || 0), y, pipeWidth, greenHitboxHeight, colors.green, 0.5);
     redHitbox.setOrigin(0, 0);
     this.scene.physics.add.existing(redHitbox);
-    (redHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
+    (redHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(physics.immovable || true);
     this.pipes.add(lowerPipeContainer as any);
     this.greenHitboxes.add(redHitbox);
     (lowerPipeContainer as any).redHitbox = redHitbox;
     
-    // Create pink LedgeGrab hitbox (8x16) at the left edge of the green square
-    const ledgeGrabHitbox = this.scene.add.rectangle(x - 8, y, 8, 16, 0xff69b4, 0.7); // pink
+    // Create pink LedgeGrab hitbox at the left edge of the green square
+    const ledgeGrabHitbox = this.scene.add.rectangle(x + (offsets.ledgeGrabX || 0), y, ledgeGrabWidth, ledgeGrabHeight, colors.pink, 0.7);
     ledgeGrabHitbox.setOrigin(0, 0);
     ledgeGrabHitbox.setName('LedgeGrab');
     this.scene.physics.add.existing(ledgeGrabHitbox);
-    (ledgeGrabHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
+    (ledgeGrabHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(physics.immovable || true);
     this.ledgeGrabHitboxes.add(ledgeGrabHitbox);
     (lowerPipeContainer as any).ledgeGrabHitbox = ledgeGrabHitbox;
     
@@ -124,44 +219,52 @@ export default class LowerPipeManager {
   }
 
   // Create a ground-based lower pipe that comes up from the ground plane
-  createGroundPipe(x: number, height: number = 200): any {
-    const blueWidth = LowerPipeManager.PIPE_WIDTH;
+  createGroundPipe(x: number, height: number = 200, overrideConfig?: Partial<LowerPipeConfig>): any {
+    // Merge override config with instance config
+    const config = { ...this.pipeConfig, ...overrideConfig };
+    
+    const pipeWidth = this.pipeWidth;
+    const greenHitboxHeight = this.greenHitboxHeight;
+    const colors = this.colors;
+    const physics = this.physics;
+    const offsets = this.offsets;
+    const groundY = this.groundYPosition;
+    const ledgeGrabWidth = this.ledgeGrabWidth;
+    const ledgeGrabHeight = this.ledgeGrabHeight;
     
 
     
     // Ground plane is at Y=1000, so the pipe starts there and goes up
-    const groundY = LowerPipeManager.GROUND_Y_POSITION; // Use centralized ground Y position
-    
     // Create ground pipe as a container with orange rectangle
     const groundPipeContainer = this.scene.add.container(x, groundY);
-    const orangeRect = this.scene.add.rectangle(0, 0, blueWidth, height, 0xff8c00);
+    const orangeRect = this.scene.add.rectangle(0, 0, pipeWidth, height, colors.orange);
     orangeRect.setOrigin(0, 0);
     orangeRect.setName('orangeRect'); // Give it a name for easy identification
     groundPipeContainer.add(orangeRect);
-    const redRect = this.scene.add.rectangle(0, 0, blueWidth, 32, 0xff0000, 0);
+    const redRect = this.scene.add.rectangle(0, 0, pipeWidth, greenHitboxHeight, colors.red, 0);
     redRect.setOrigin(0, 0);
     groundPipeContainer.add(redRect);
     // Initialize empty maroon hitboxes array for ground pipe (will be populated on-demand)
     (groundPipeContainer as any).maroonHitboxes = [];
     this.scene.physics.add.existing(groundPipeContainer);
-    (groundPipeContainer.body as Phaser.Physics.Arcade.Body).setImmovable(true);
-    (groundPipeContainer.body as Phaser.Physics.Arcade.Body).setSize(blueWidth, height);
-    (groundPipeContainer.body as Phaser.Physics.Arcade.Body).setOffset(0, 32);
+    (groundPipeContainer.body as Phaser.Physics.Arcade.Body).setImmovable(physics.immovable || true);
+    (groundPipeContainer.body as Phaser.Physics.Arcade.Body).setSize(pipeWidth, height);
+    (groundPipeContainer.body as Phaser.Physics.Arcade.Body).setOffset(0, 0);
     // Create separate hitbox for red rectangle (green platform)
-    const redHitbox = this.scene.add.rectangle(x, groundY, blueWidth, 32, 0x00ff00, 0.5);
+    const redHitbox = this.scene.add.rectangle(x + (offsets.greenHitboxX || 0), groundY, pipeWidth, greenHitboxHeight, colors.green, 0.5);
     redHitbox.setOrigin(0, 0);
     this.scene.physics.add.existing(redHitbox);
-    (redHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
+    (redHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(physics.immovable || true);
     this.pipes.add(groundPipeContainer as any);
     this.greenHitboxes.add(redHitbox);
     (groundPipeContainer as any).redHitbox = redHitbox;
     
-    // Create pink LedgeGrab hitbox (8x16) at the left edge of the green square
-    const ledgeGrabHitbox = this.scene.add.rectangle(x - 8, groundY, 8, 16, 0xff69b4, 0.7); // pink
+    // Create pink LedgeGrab hitbox at the left edge of the green square
+    const ledgeGrabHitbox = this.scene.add.rectangle(x + (offsets.ledgeGrabX || 0), groundY, ledgeGrabWidth, ledgeGrabHeight, colors.pink, 0.7);
     ledgeGrabHitbox.setOrigin(0, 0);
     ledgeGrabHitbox.setName('LedgeGrab');
     this.scene.physics.add.existing(ledgeGrabHitbox);
-    (ledgeGrabHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
+    (ledgeGrabHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(physics.immovable || true);
     this.ledgeGrabHitboxes.add(ledgeGrabHitbox);
     (groundPipeContainer as any).ledgeGrabHitbox = ledgeGrabHitbox;
     
@@ -446,5 +549,68 @@ export default class LowerPipeManager {
     }
     
     return false; // No first column cubes have been knocked away
+  }
+  
+  // Helper methods to get configuration values
+  private get pipeWidth(): number {
+    return this.pipeConfig.pipeWidth || LowerPipeManager.DEFAULT_CONFIG.pipeWidth!;
+  }
+  
+  private get hitboxWidth(): number {
+    return this.pipeConfig.hitboxWidth || LowerPipeManager.DEFAULT_CONFIG.hitboxWidth!;
+  }
+  
+  private get greenHitboxHeight(): number {
+    return this.pipeConfig.greenHitboxHeight || LowerPipeManager.DEFAULT_CONFIG.greenHitboxHeight!;
+  }
+  
+  private get ledgeGrabWidth(): number {
+    return this.pipeConfig.ledgeGrabWidth || LowerPipeManager.DEFAULT_CONFIG.ledgeGrabWidth!;
+  }
+  
+  private get ledgeGrabHeight(): number {
+    return this.pipeConfig.ledgeGrabHeight || LowerPipeManager.DEFAULT_CONFIG.ledgeGrabHeight!;
+  }
+  
+  private get groundYPosition(): number {
+    return this.pipeConfig.groundYPosition || LowerPipeManager.DEFAULT_CONFIG.groundYPosition!;
+  }
+  
+  private get maroonCubeFadeDuration(): number {
+    return this.pipeConfig.maroonCubeFadeDuration || LowerPipeManager.DEFAULT_CONFIG.maroonCubeFadeDuration!;
+  }
+  
+  private get colors() {
+    return { ...LowerPipeManager.DEFAULT_CONFIG.colors!, ...this.pipeConfig.colors };
+  }
+  
+  private get physics() {
+    return { ...LowerPipeManager.DEFAULT_CONFIG.physics!, ...this.pipeConfig.physics };
+  }
+  
+  private get offsets() {
+    return { ...LowerPipeManager.DEFAULT_CONFIG.offsets!, ...this.pipeConfig.offsets };
+  }
+  
+  // Calculate dynamic values based on configuration
+  public get numColumns(): number {
+    return Math.floor(this.pipeWidth / this.hitboxWidth);
+  }
+  
+  public get lowerPipeHeight(): number {
+    return this.cachedLowerPipeHeight;
+  }
+  
+  public get lowerPipeYPosition(): number {
+    return this.cachedLowerPipeYPosition;
+  }
+  
+  // Static factory methods for common configurations
+  static createStandardPipeConfig(): LowerPipeConfig {
+    return LowerPipeManager.DEFAULT_CONFIG;
+  }
+  
+  static createCustomPipeConfig(overrides: Partial<LowerPipeConfig>): LowerPipeConfig {
+    return { ...LowerPipeManager.DEFAULT_CONFIG, ...overrides };
   }
 } 

@@ -1,5 +1,43 @@
 import Phaser from "phaser";
 
+// Configuration interface for UpperPipeManager
+export interface UpperPipeConfig {
+  // Dimensions
+  pipeWidth?: number;
+  hitboxWidth?: number;
+  blueHitboxHeight?: number;
+  
+  // Positioning
+  containerYPosition?: number;
+  basePipeHeight?: number;
+  basePipeYPosition?: number;
+  pipeHeightOffset?: number;
+  
+  // Animation
+  purpleCubeFadeDuration?: number;
+  
+  // Colors
+  colors?: {
+    orange?: number;
+    blue?: number;
+    cyan?: number;
+  };
+  
+  // Physics
+  physics?: {
+    gravity?: number;
+    immovable?: boolean;
+    pushable?: boolean;
+  };
+  
+  // Offsets
+  offsets?: {
+    blueHitboxX?: number;
+    placeholderX?: number;
+    purpleCubeX?: number;
+  };
+}
+
 export default class UpperPipeManager {
   private scene: Phaser.Scene;
   private config: any;
@@ -9,6 +47,40 @@ export default class UpperPipeManager {
   public blueHitboxes: Phaser.Physics.Arcade.Group;
   public purpleHitboxes: Phaser.Physics.Arcade.Group;
   public fallingPurpleHitboxes: Phaser.Physics.Arcade.Group;
+  
+  // Default configuration that matches current hardcoded values
+  private static readonly DEFAULT_CONFIG: UpperPipeConfig = {
+    pipeWidth: Math.ceil(78 / 16) * 16,
+    hitboxWidth: 16,
+    blueHitboxHeight: 32,
+    containerYPosition: -800,
+    basePipeHeight: Math.ceil(800 / 16) * 16,
+    basePipeYPosition: 0,
+    pipeHeightOffset: 0, // No random offset for now
+    purpleCubeFadeDuration: 1000,
+    colors: {
+      orange: 0xff8c00,
+      blue: 0x0000ff,
+      cyan: 0x00ffff
+    },
+    physics: {
+      gravity: 400,
+      immovable: true,
+      pushable: false
+    },
+    offsets: {
+      blueHitboxX: -2,
+      placeholderX: -2,
+      purpleCubeX: -2
+    }
+  };
+  
+  // Instance configuration (merged with defaults)
+  private pipeConfig: UpperPipeConfig;
+  
+  // Cached calculated values to ensure consistency
+  private cachedPipeHeight: number;
+  private cachedPipeYPosition: number;
 
   // Add these constants for column logic (same as original PipeManager)
   private static readonly PIPE_WIDTH = Math.ceil(78 / 16) * 16; // Always a multiple of 16
@@ -34,11 +106,19 @@ export default class UpperPipeManager {
   private static readonly BASE_PIPE_Y_POSITION = 0;
   public static readonly PIPE_Y_POSITION = Math.ceil((UpperPipeManager.BASE_PIPE_Y_POSITION + UpperPipeManager.PIPE_HEIGHT_OFFSET) / 16) * 16;
 
-  constructor(scene: Phaser.Scene, config: any, difficulties: any, currentDifficulty: string) {
+  constructor(scene: Phaser.Scene, config: any, difficulties: any, currentDifficulty: string, pipeConfig?: UpperPipeConfig) {
     this.scene = scene;
     this.config = config;
     this.difficulties = difficulties;
     this.currentDifficulty = currentDifficulty;
+    
+    // Merge provided config with defaults
+    this.pipeConfig = { ...UpperPipeManager.DEFAULT_CONFIG, ...pipeConfig };
+    
+    // Use the original static values for now
+    this.cachedPipeHeight = UpperPipeManager.PIPE_HEIGHT;
+    this.cachedPipeYPosition = UpperPipeManager.PIPE_Y_POSITION;
+    
     this.pipes = this.scene.physics.add.group();
     this.blueHitboxes = this.scene.physics.add.group();
     this.purpleHitboxes = this.scene.physics.add.group();
@@ -46,49 +126,57 @@ export default class UpperPipeManager {
   }
 
   // Create an upper pipe that extends to the sky plane
-  createUpperPipe(x: number, y: number): any {
-    const blueWidth = UpperPipeManager.PIPE_WIDTH;
+  createUpperPipe(x: number, y: number, overrideConfig?: Partial<UpperPipeConfig>): any {
+    // Merge override config with instance config
+    const config = { ...this.pipeConfig, ...overrideConfig };
+    
+    const blueWidth = this.pipeWidth;
+    const pipeHeight = this.pipeHeight;
+    const blueHitboxHeight = this.blueHitboxHeight;
+    const colors = this.colors;
+    const physics = this.physics;
+    const offsets = this.offsets;
     
 
     
     // Create upper pipe as a container with orange rectangle - extend to sky plane
     const upperPipeContainer = this.scene.add.container(x, y);
     // Add orange rectangle to container - extend to sky plane
-    const upperOrangeRect = this.scene.add.rectangle(0, 0, blueWidth, UpperPipeManager.PIPE_HEIGHT, 0xff8c00, 0); // alpha 0
+    const upperOrangeRect = this.scene.add.rectangle(0, 0, blueWidth, pipeHeight, colors.orange, 0); // alpha 0
     upperOrangeRect.setOrigin(0, 0); // Change to top-left origin so it extends downward
-    upperOrangeRect.setPosition(0, -UpperPipeManager.PIPE_HEIGHT); // Position it to extend from pipe position down to sky
+    upperOrangeRect.setPosition(0, -pipeHeight); // Position it to extend from pipe position down to sky
     upperPipeContainer.add(upperOrangeRect);
     // Add blue rectangle as child of the container
-    const blueRect = this.scene.add.rectangle(0, 0, blueWidth, 32, 0x0000ff, 0);
+    const blueRect = this.scene.add.rectangle(0, 0, blueWidth, blueHitboxHeight, colors.blue, 0);
     blueRect.setOrigin(0, 0);
     blueRect.setPosition(0, 0); // Position at bottom of pipe area (pipe position)
     upperPipeContainer.add(blueRect);
     // Create separate hitbox for blue rectangle (positioned at pipe position)
-    const blueHitbox = this.scene.add.rectangle(x - 2, y, blueWidth, 32, 0x00ffff, 1);
+    const blueHitbox = this.scene.add.rectangle(x + (offsets.blueHitboxX || 0), y, blueWidth, blueHitboxHeight, colors.cyan, 1);
     blueHitbox.setOrigin(0, 0);
     this.scene.physics.add.existing(blueHitbox);
-    (blueHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
-    (blueHitbox.body as Phaser.Physics.Arcade.Body).pushable = false;
+    (blueHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(physics.immovable || true);
+    (blueHitbox.body as Phaser.Physics.Arcade.Body).pushable = physics.pushable || false;
     this.blueHitboxes.add(blueHitbox);
     // Initialize empty purple hitboxes array (will be populated on-demand)
     (upperPipeContainer as any).purpleHitboxes = [];
     
     // Create placeholder orange rectangle covering the entire pipe height
     const placeholderWidth = blueWidth; // Same as pipe width
-    const placeholderHeight = UpperPipeManager.PIPE_HEIGHT; // Full pipe height
-    const placeholderX = -2; // Same X offset as purple cubes
-    const placeholderY = -UpperPipeManager.PIPE_HEIGHT; // Start from sky (top of pipe)
-    const placeholderRect = this.scene.add.rectangle(placeholderX, placeholderY, placeholderWidth, placeholderHeight, 0xff8c00, 1);
+    const placeholderHeight = pipeHeight; // Full pipe height
+    const placeholderX = offsets.placeholderX; // Same X offset as purple cubes
+    const placeholderY = -pipeHeight; // Start from sky (top of pipe)
+    const placeholderRect = this.scene.add.rectangle(placeholderX, placeholderY, placeholderWidth, placeholderHeight, colors.orange, 1);
     placeholderRect.setOrigin(0, 0);
     upperPipeContainer.add(placeholderRect);
     (upperPipeContainer as any).placeholderRect = placeholderRect;
     this.scene.physics.add.existing(upperPipeContainer);
-    (upperPipeContainer.body as Phaser.Physics.Arcade.Body).setImmovable(true);
+    (upperPipeContainer.body as Phaser.Physics.Arcade.Body).setImmovable(physics.immovable || true);
     // Calculate total height: pipe extends from sky to pipe position
     // Total span: from -PIPE_HEIGHT to +BLUE_HITBOX_HEIGHT
-    const totalContainerHeight = UpperPipeManager.PIPE_HEIGHT + UpperPipeManager.BLUE_HITBOX_HEIGHT; // pipe height + blue hitbox area
+    const totalContainerHeight = pipeHeight + blueHitboxHeight; // pipe height + blue hitbox area
     (upperPipeContainer.body as Phaser.Physics.Arcade.Body).setSize(blueWidth, totalContainerHeight);
-    (upperPipeContainer.body as Phaser.Physics.Arcade.Body).setOffset(0, -UpperPipeManager.PIPE_HEIGHT); // Offset to start from sky
+    (upperPipeContainer.body as Phaser.Physics.Arcade.Body).setOffset(0, -pipeHeight); // Offset to start from sky
     this.pipes.add(upperPipeContainer as any);
     
     (upperPipeContainer as any).blueHitbox = blueHitbox;
@@ -119,8 +207,8 @@ export default class UpperPipeManager {
       return; // Already generated, skip
     }
 
-    const numColumns = UpperPipeManager.numColumns;
-    const hitboxWidth = UpperPipeManager.hitboxWidth;
+    const numColumns = this.numColumns;
+    const hitboxWidth = this.hitboxWidth;
     
 
     
@@ -131,7 +219,7 @@ export default class UpperPipeManager {
     }
     
     // Calculate dynamic height for purple cubes based on unified pipe height
-    const purpleCubeAreaHeight = UpperPipeManager.PIPE_HEIGHT; // Fill entire pipe height
+    const purpleCubeAreaHeight = this.pipeHeight; // Fill entire pipe height
     const numRows = Math.floor(purpleCubeAreaHeight / hitboxWidth);
     
     // Create grid of colored hitboxes for this pipe (numColumns across, dynamic rows)
@@ -140,8 +228,8 @@ export default class UpperPipeManager {
     for (let row = 0; row < numRows; row++) {
       for (let col = 0; col < numColumns; col++) {
         // Set container-relative position to match placeholder rectangle
-        const exactX = (col * hitboxWidth) - 2;
-        const exactY = -UpperPipeManager.PIPE_HEIGHT + (row * hitboxWidth); // Start from sky (top of pipe)
+        const exactX = (col * hitboxWidth) + (this.offsets.purpleCubeX || 0);
+        const exactY = -this.pipeHeight + (row * hitboxWidth); // Start from sky (top of pipe)
         
         // Safety check: ensure purple cubes don't extend beyond pipe bounds
         if (exactY + hitboxWidth > 0) { // Stop at pipe position (bottom of pipe)
@@ -149,7 +237,7 @@ export default class UpperPipeManager {
           continue;
         }
         
-        const hitbox = this.scene.add.rectangle(0, 0, hitboxWidth, hitboxWidth, 0xff8c00, 1) as Phaser.GameObjects.Rectangle & { canDamage?: boolean }; // orange, fully opaque
+        const hitbox = this.scene.add.rectangle(0, 0, hitboxWidth, hitboxWidth, this.colors.orange, 1) as Phaser.GameObjects.Rectangle & { canDamage?: boolean }; // orange, fully opaque
         hitbox.setOrigin(0, 0);
         hitbox.setPosition(exactX, exactY);
         
@@ -157,6 +245,7 @@ export default class UpperPipeManager {
         (hitbox.body as Phaser.Physics.Arcade.Body).setImmovable(false); // Allow movement for gravity/velocity
         (hitbox.body as Phaser.Physics.Arcade.Body).setSize(hitboxWidth, hitboxWidth);
         (hitbox.body as Phaser.Physics.Arcade.Body).setAllowGravity(true); // Enable gravity from creation
+        (hitbox.body as Phaser.Physics.Arcade.Body).setGravityY(this.physics.gravity || 400);
         hitbox.canDamage = true;
         pipeContainer.add(hitbox); // Add to container first
         this.purpleHitboxes.add(hitbox); // Then add to global group
@@ -185,7 +274,7 @@ export default class UpperPipeManager {
           const pipeHitboxes = (upperPipe as any).purpleHitboxes as Phaser.GameObjects.Rectangle[];
           const hitIndex = pipeHitboxes.indexOf(hitHitbox);
           if (hitIndex !== -1) {
-            const numColumns = UpperPipeManager.numColumns;
+            const numColumns = this.numColumns;
             const hitRow = Math.floor(hitIndex / numColumns);
             const hitCol = hitIndex % numColumns;
             pipeHitboxes.forEach((hitbox, index) => {
@@ -197,12 +286,12 @@ export default class UpperPipeManager {
                 this.fallingPurpleHitboxes.add(hitbox);
                 
                 if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
-                  hitbox.body.setGravityY(400);
+                  hitbox.body.setGravityY(this.physics.gravity || 400);
                 }
                 this.scene.tweens.add({
                   targets: hitbox,
                   alpha: 0,
-                  duration: UpperPipeManager.PURPLE_CUBE_FADE_DURATION,
+                  duration: this.purpleCubeFadeDuration,
                   ease: 'Linear',
                 });
               }
@@ -314,5 +403,70 @@ export default class UpperPipeManager {
   // Set current difficulty
   public setCurrentDifficulty(currentDifficulty: string) {
     this.currentDifficulty = currentDifficulty;
+  }
+  
+  // Helper methods to get configuration values
+  private get pipeWidth(): number {
+    return this.pipeConfig.pipeWidth || UpperPipeManager.DEFAULT_CONFIG.pipeWidth!;
+  }
+  
+  private get hitboxWidth(): number {
+    return this.pipeConfig.hitboxWidth || UpperPipeManager.DEFAULT_CONFIG.hitboxWidth!;
+  }
+  
+  private get blueHitboxHeight(): number {
+    return this.pipeConfig.blueHitboxHeight || UpperPipeManager.DEFAULT_CONFIG.blueHitboxHeight!;
+  }
+  
+  private get purpleCubeFadeDuration(): number {
+    return this.pipeConfig.purpleCubeFadeDuration || UpperPipeManager.DEFAULT_CONFIG.purpleCubeFadeDuration!;
+  }
+  
+  private get colors() {
+    return { ...UpperPipeManager.DEFAULT_CONFIG.colors!, ...this.pipeConfig.colors };
+  }
+  
+  private get physics() {
+    return { ...UpperPipeManager.DEFAULT_CONFIG.physics!, ...this.pipeConfig.physics };
+  }
+  
+  private get offsets() {
+    return { ...UpperPipeManager.DEFAULT_CONFIG.offsets!, ...this.pipeConfig.offsets };
+  }
+  
+  // Calculate dynamic values based on configuration
+  public get numColumns(): number {
+    return Math.floor(this.pipeWidth / this.hitboxWidth);
+  }
+  
+  public get pipeHeight(): number {
+    return this.cachedPipeHeight;
+  }
+  
+  public get pipeYPosition(): number {
+    return this.cachedPipeYPosition;
+  }
+  
+  // Static factory methods for common configurations
+  static createFloatingPipeConfig(): UpperPipeConfig {
+    return {
+      pipeWidth: 80,
+      blueHitboxHeight: 32,
+      basePipeHeight: 400,
+      pipeHeightOffset: 0,
+      colors: {
+        orange: 0xff8c00,
+        blue: 0x0000ff,
+        cyan: 0x00ffff
+      }
+    };
+  }
+  
+  static createStandardPipeConfig(): UpperPipeConfig {
+    return UpperPipeManager.DEFAULT_CONFIG;
+  }
+  
+  static createCustomPipeConfig(overrides: Partial<UpperPipeConfig>): UpperPipeConfig {
+    return { ...UpperPipeManager.DEFAULT_CONFIG, ...overrides };
   }
 } 
