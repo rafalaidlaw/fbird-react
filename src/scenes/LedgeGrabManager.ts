@@ -1,19 +1,23 @@
 import Phaser from "phaser";
 import Player from "./Player";
 import LowerPipeManager from "./LowerPipeManager";
+import FloatingPipeManager from "./FloatingPipeManager";
 import PipeCutHitStop from "../PipeCutHitStop";
 
 export default class LedgeGrabManager {
   private scene: Phaser.Scene;
   private player: Player;
   private lowerPipeManager: LowerPipeManager;
+  private floatingPipeManager: FloatingPipeManager;
   private pipeCutHitStop: PipeCutHitStop;
   private ledgeGrabOverlap?: any;
+  private floatingLedgeGrabOverlap?: any;
 
-  constructor(scene: Phaser.Scene, player: Player, lowerPipeManager: LowerPipeManager, pipeCutHitStop: PipeCutHitStop) {
+  constructor(scene: Phaser.Scene, player: Player, lowerPipeManager: LowerPipeManager, floatingPipeManager: FloatingPipeManager, pipeCutHitStop: PipeCutHitStop) {
     this.scene = scene;
     this.player = player;
     this.lowerPipeManager = lowerPipeManager;
+    this.floatingPipeManager = floatingPipeManager;
     this.pipeCutHitStop = pipeCutHitStop;
   }
 
@@ -21,6 +25,7 @@ export default class LedgeGrabManager {
     // Set up overlap detection with LedgeGrab hitboxes
     if (!this.player.lookAheadHitbox) return;
     
+    // Set up overlap detection for lower pipe ledge grab hitboxes
     this.ledgeGrabOverlap = this.scene.physics.add.overlap(
       this.player.lookAheadHitbox,
       this.lowerPipeManager.ledgeGrabHitboxes,
@@ -30,11 +35,35 @@ export default class LedgeGrabManager {
           return;
         }
         
-        console.log("[LEDGE GRAB MANAGER] LedgeGrab detected ahead");
+        console.log("[LEDGE GRAB MANAGER] Lower pipe LedgeGrab detected ahead");
         // Find the pipe container that owns this LedgeGrab hitbox
         this.lowerPipeManager.pipes.getChildren().forEach((pipeContainer: any) => {
           if ((pipeContainer as any).ledgeGrabHitbox === ledgeGrabHitbox) {
-            this.handleLedgeGrab(pipeContainer);
+            this.handleLedgeGrab(pipeContainer, 'lower');
+          }
+        });
+      },
+      undefined,
+      this
+    );
+
+    // Set up overlap detection for floating pipe ledge grab hitboxes
+    this.floatingLedgeGrabOverlap = this.scene.physics.add.overlap(
+      this.player.lookAheadHitbox,
+      this.floatingPipeManager.ledgeGrabHitboxes,
+      (lookAhead: any, ledgeGrabHitbox: any) => {
+        // Don't trigger ledge grab if Kilboy is already cutting through brown hitboxes
+        if (this.player.isHoldingSwingFrame) {
+          return;
+        }
+        
+        console.log("[LEDGE GRAB MANAGER] Floating pipe LedgeGrab detected ahead");
+        // Find the pipe container that owns this LedgeGrab hitbox
+        this.floatingPipeManager.pipes.getChildren().forEach((pipeContainer: any) => {
+          if ((pipeContainer as any).ledgeGrabHitbox === ledgeGrabHitbox) {
+            // Mark this pipe as having used ledge grab (prevents green box from falling)
+            this.floatingPipeManager.markLedgeGrabUsed(pipeContainer);
+            this.handleLedgeGrab(pipeContainer, 'floating');
           }
         });
       },
@@ -43,7 +72,7 @@ export default class LedgeGrabManager {
     );
   }
 
-  private handleLedgeGrab(pipeContainer: any): void {
+  private handleLedgeGrab(pipeContainer: any, pipeType: 'lower' | 'floating'): void {
     // Only trigger ledge grab if not already performing one
     if (this.player.isLedgeGrabbing) return;
     
@@ -59,8 +88,13 @@ export default class LedgeGrabManager {
       this.ledgeGrabOverlap.active = false;
     }
     
-    // Get the green box (redHitbox) position and dimensions
-    const greenBox = (pipeContainer as any).redHitbox;
+    // Get the green box position and dimensions based on pipe type
+    let greenBox: any;
+    if (pipeType === 'lower') {
+      greenBox = (pipeContainer as any).redHitbox;
+    } else if (pipeType === 'floating') {
+      greenBox = (pipeContainer as any).greenHitbox;
+    }
     if (!greenBox) return;
     
     // Calculate position next to the left side of the green box
@@ -128,6 +162,10 @@ export default class LedgeGrabManager {
     if (this.ledgeGrabOverlap) {
       this.ledgeGrabOverlap.destroy();
       this.ledgeGrabOverlap = undefined;
+    }
+    if (this.floatingLedgeGrabOverlap) {
+      this.floatingLedgeGrabOverlap.destroy();
+      this.floatingLedgeGrabOverlap = undefined;
     }
   }
 } 
