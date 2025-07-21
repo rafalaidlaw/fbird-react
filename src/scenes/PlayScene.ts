@@ -759,6 +759,28 @@ class PlayScene extends BaseScene {
         this
       );
     }
+
+    // Sprite collides with purple boxes (for damage) - floating pipe
+    if (this.player && this.floatingPipeManager.floatingPurpleHitboxes) {
+      this.physics.add.collider(
+        this.player.sprite,
+        this.floatingPipeManager.floatingPurpleHitboxes,
+        (obj1: any, obj2: any) => {
+          if (obj1 instanceof Phaser.GameObjects.GameObject && obj2 instanceof Phaser.GameObjects.GameObject) {
+            const shouldTakeDamage = this.player.handlePurpleHitboxCollision(obj2, this.floatingPipeManager, this.isGameOver);
+            const isInAttackSwing = this.player.sprite.anims.isPlaying && this.player.sprite.anims.currentAnim?.key === "kilboy_swing_anim";
+            if (shouldTakeDamage && !this.player.isInvincible && !isInAttackSwing) {
+              if (this.player.takeHit()) {
+                this.gameOver();
+              }
+              this.uiManager.updateHealthUI(this.player.getHealth());
+            }
+          }
+        },
+        undefined,
+        this
+      );
+    }
   }
 
 

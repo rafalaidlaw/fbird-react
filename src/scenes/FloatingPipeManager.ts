@@ -36,7 +36,7 @@ export default class FloatingPipeManager {
     // Create blue ceiling at the bottom
     const blueCeiling = this.scene.add.rectangle(
       40, 
-      184, // Position at bottom of container (200 - 16)
+      176, // Position at bottom of container (200 - 16)
       80, 
       32, 
       0x00ffff // Same cyan color as upper pipe blue hitbox
@@ -46,7 +46,7 @@ export default class FloatingPipeManager {
     // Create separate physics body for blue ceiling detection
     const blueHitbox = this.scene.add.rectangle(
       x + 40, // Absolute world position
-      y + 184, // Absolute world position
+      y + 176, // Absolute world position
       80, 
       32, 
       0x00ffff, // Same cyan color as upper pipe blue hitbox
@@ -75,7 +75,7 @@ export default class FloatingPipeManager {
     // Set up physics for the container
     this.scene.physics.add.existing(floatingPipeContainer);
     (floatingPipeContainer.body as Phaser.Physics.Arcade.Body).setImmovable(true);
-    (floatingPipeContainer.body as Phaser.Physics.Arcade.Body).setSize(80, 200);
+    (floatingPipeContainer.body as Phaser.Physics.Arcade.Body).setSize(80, 192);
     
     this.pipes.add(floatingPipeContainer as any);
     
@@ -92,7 +92,7 @@ export default class FloatingPipeManager {
     const numColumns = 5; // Match brown cube columns
     const hitboxWidth = 16;
     const pipeWidth = 80;
-    const pipeHeight = 200;
+    const pipeHeight = 192;
     const greenPlatformHeight = 32;
     const blueCeilingHeight = 32;
     const availableHeight = pipeHeight - greenPlatformHeight - blueCeilingHeight; // 200 - 32 - 32 = 136
@@ -128,6 +128,41 @@ export default class FloatingPipeManager {
       }
     }
     (floatingPipeContainer as any).purpleHitboxes = pipeHitboxes;
+  }
+
+  // Makes all purple hitboxes below the given hitbox in the same column fall and fade out (for floating pipes)
+  public triggerFallForHitboxesBelow(hitHitbox: Phaser.GameObjects.Rectangle, isGameOver: boolean, isDashTriggered: boolean = false) {
+    this.scene.time.delayedCall(50, () => {
+      this.pipes.getChildren().forEach((pipe: any) => {
+        const floatingPipe = pipe as Phaser.GameObjects.Container;
+        if (floatingPipe && (floatingPipe as any).purpleHitboxes) {
+          const pipeHitboxes = (floatingPipe as any).purpleHitboxes as Phaser.GameObjects.Rectangle[];
+          const hitIndex = pipeHitboxes.indexOf(hitHitbox);
+          if (hitIndex !== -1) {
+            const numColumns = 5; // Match floating pipe columns
+            const hitRow = Math.floor(hitIndex / numColumns);
+            const hitCol = hitIndex % numColumns;
+            pipeHitboxes.forEach((hitbox, index) => {
+              const row = Math.floor(index / numColumns);
+              const col = index % numColumns;
+              if (col === hitCol && row > hitRow) {
+                this.floatingPurpleHitboxes.remove(hitbox);
+                // Optionally add to a falling group if you want to track falling cubes
+                if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
+                  hitbox.body.setGravityY(400);
+                }
+                this.scene.tweens.add({
+                  targets: hitbox,
+                  alpha: 0,
+                  duration: 1000,
+                  ease: 'Linear',
+                });
+              }
+            });
+          }
+        }
+      });
+    });
   }
 
   // Remove pipes that are far behind the player (for recycling)

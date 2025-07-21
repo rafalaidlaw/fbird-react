@@ -452,10 +452,8 @@ export default class Player {
       (attack: any, purple: any) => {
         // Only trigger pipe cut hitstop if the purple cube is fully opaque (not fading)
         if ((this.scene as any).pipeCutHitStop && purple.alpha >= 1) {
-          console.log("[PIPE CUT HITSTOP] Triggered by attack hitbox hitting purple cube!");
           (this.scene as any).pipeCutHitStop.trigger();
         }
-        
         // Simulate Kilboy's upward hit on purple cube (push effect)
         purple.canDamage = false;
         // Disable all purple cubes in the same pipe
@@ -466,13 +464,11 @@ export default class Player {
           // Move to falling group to prevent collision with player
           (this.scene as any).upperPipeManager.purpleHitboxes.remove(purple);
           (this.scene as any).upperPipeManager.fallingPurpleHitboxes.add(purple);
-          
           purple.body.setAllowGravity(true);
           purple.body.setGravityY(800);
           const randomX = Phaser.Math.Between(70, 110);
           const randomY = Phaser.Math.Between(-170, -130);
           purple.body.setVelocity(randomX, randomY);
-          
           // Start fading immediately when X velocity is applied
           this.scene.tweens.add({
             targets: purple,
@@ -482,6 +478,44 @@ export default class Player {
           });
         }
         (this.scene as any).upperPipeManager.triggerFallForHitboxesBelow(purple, false, false);
+      },
+      undefined,
+      this
+    );
+
+    // Set up overlap with floating pipe purple cubes for the attack hitbox
+    this.scene.physics.add.overlap(
+      this.attackHitbox!,
+      (this.scene as any).floatingPipeManager?.floatingPurpleHitboxes,
+      (attack: any, purple: any) => {
+        // Only trigger pipe cut hitstop if the purple cube is fully opaque (not fading)
+        if ((this.scene as any).pipeCutHitStop && purple.alpha >= 1) {
+          (this.scene as any).pipeCutHitStop.trigger();
+        }
+        // Simulate Kilboy's upward hit on purple cube (push effect)
+        purple.canDamage = false;
+        // Disable all purple cubes in the same pipe
+        this.disableAllPurpleCubesInPipe(purple);
+        // Update last purple cube hit timestamp
+        this.lastPurpleCubeHitTime = this.scene.time.now;
+        if (purple.body && purple.body instanceof Phaser.Physics.Arcade.Body) {
+          // Move to falling group to prevent collision with player
+          (this.scene as any).floatingPipeManager.floatingPurpleHitboxes.remove(purple);
+          // Optionally add to a falling group if you want to track falling cubes
+          purple.body.setAllowGravity(true);
+          purple.body.setGravityY(800);
+          const randomX = Phaser.Math.Between(70, 110);
+          const randomY = Phaser.Math.Between(-170, -130);
+          purple.body.setVelocity(randomX, randomY);
+          // Start fading immediately when X velocity is applied
+          this.scene.tweens.add({
+            targets: purple,
+            alpha: 0,
+            duration: 1000,
+            ease: 'Linear',
+          });
+        }
+        (this.scene as any).floatingPipeManager.triggerFallForHitboxesBelow(purple, false, false);
       },
       undefined,
       this
