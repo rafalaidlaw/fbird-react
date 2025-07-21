@@ -355,6 +355,49 @@ class PlayScene extends BaseScene {
     this.updateSkySegments();
     
     // Enemy system temporarily disabled for static pipe testing
+    // Check floating pipe purple hitboxes for velocity and apply gravity/fading
+    this.floatingPipeManager.floatingPurpleHitboxes.getChildren().forEach((purpleHitbox: any) => {
+      if (purpleHitbox.body && purpleHitbox.body instanceof Phaser.Physics.Arcade.Body) {
+        const body = purpleHitbox.body as Phaser.Physics.Arcade.Body;
+        if (Math.abs(body.velocity.x) > 5 || Math.abs(body.velocity.y) > 5) {
+          // Move to falling group if not already there
+          this.floatingPipeManager.floatingPurpleHitboxes.remove(purpleHitbox);
+          this.floatingPipeManager.fallingPurpleHitboxes.add(purpleHitbox);
+          // Enable gravity if not already enabled
+          if (!body.allowGravity) {
+            body.setAllowGravity(true);
+            body.setGravityY(800);
+          }
+          // Start fading if not already fading
+          if (purpleHitbox.alpha > 0) {
+            this.tweens.add({
+              targets: purpleHitbox,
+              alpha: 0,
+              duration: 1000,
+              ease: 'Linear',
+            });
+          }
+        }
+      }
+    });
+    // Ensure gravity and fading for cubes already in falling group
+    this.floatingPipeManager.fallingPurpleHitboxes.getChildren().forEach((purpleHitbox: any) => {
+      if (purpleHitbox.body && purpleHitbox.body instanceof Phaser.Physics.Arcade.Body) {
+        const body = purpleHitbox.body as Phaser.Physics.Arcade.Body;
+        if (!body.allowGravity) {
+          body.setAllowGravity(true);
+          body.setGravityY(800);
+        }
+        if (purpleHitbox.alpha > 0) {
+          this.tweens.add({
+            targets: purpleHitbox,
+            alpha: 0,
+            duration: 1000,
+            ease: 'Linear',
+          });
+        }
+      }
+    });
   }
 
   private updateGroundSegments(): void {
@@ -997,10 +1040,13 @@ class PlayScene extends BaseScene {
     if (this.floatingPipeManager.greenHitboxes) {
       this.floatingPipeManager.greenHitboxes.getChildren().forEach((hitbox: any) => {
         if (this.player && this.player.sprite && this.physics.overlap(this.player.sprite, hitbox)) {
-          // For floating pipes, we don't need to check for falling or maroon cubes
-          // Just allow standing on the green platform
-          isOverlapping = true;
-          if (!firstOverlappingGreen) firstOverlappingGreen = hitbox;
+          // Only allow standing on green hitbox if it's not falling (gravity.y === 0)
+          const hitboxBody = hitbox.body as Phaser.Physics.Arcade.Body;
+          const isFalling = hitboxBody && hitboxBody.gravity.y > 0;
+          if (!isFalling) {
+            isOverlapping = true;
+            if (!firstOverlappingGreen) firstOverlappingGreen = hitbox;
+          }
         }
       });
     }
@@ -1016,7 +1062,22 @@ class PlayScene extends BaseScene {
       }
       // Set Kilboy's y position to a constant offset above the green box
       if (firstOverlappingGreen) {
-        this.player.sprite.y = firstOverlappingGreen.y - 64; // 16 pixels above the green hitbox
+        // Check if this is a floating pipe green hitbox (child of a container in floatingPipeManager.pipes)
+        let isFloatingPipe = false;
+        let floatingContainerY = 0;
+        if (this.floatingPipeManager && this.floatingPipeManager.pipes) {
+          this.floatingPipeManager.pipes.getChildren().forEach((container: any) => {
+            if (container && container.list && container.list.includes(firstOverlappingGreen)) {
+              isFloatingPipe = true;
+              floatingContainerY = container.y;
+            }
+          });
+        }
+        if (isFloatingPipe) {
+          this.player.sprite.y = floatingContainerY + firstOverlappingGreen.y - 64;
+        } else {
+          this.player.sprite.y = firstOverlappingGreen.y - 64;
+        }
       }
     } else {
       // Only reset gravity if the player's gravity multiplier system hasn't applied enhanced gravity

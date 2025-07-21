@@ -8,6 +8,7 @@ export default class FloatingPipeManager {
   // Add a group for floating pipe purple cubes
   public floatingPurpleHitboxes: Phaser.Physics.Arcade.Group;
   public ledgeGrabHitboxes: Phaser.Physics.Arcade.Group;
+  public fallingPurpleHitboxes: Phaser.Physics.Arcade.Group;
 
   constructor(scene: Phaser.Scene, config: any, difficulties: any, currentDifficulty: string, upperPipeManager: any, lowerPipeManager: any) {
     this.scene = scene;
@@ -16,6 +17,7 @@ export default class FloatingPipeManager {
     this.blueHitboxes = this.scene.physics.add.group();
     this.floatingPurpleHitboxes = this.scene.physics.add.group();
     this.ledgeGrabHitboxes = this.scene.physics.add.group();
+    this.fallingPurpleHitboxes = this.scene.physics.add.group();
   }
 
   // Create a floating pipe at the specified position
@@ -23,7 +25,14 @@ export default class FloatingPipeManager {
     // Create main floating pipe container
     const floatingPipeContainer = this.scene.add.container(x, y);
     
-    // Create green walkable platform on top
+    // Add placeholder orange rectangle as the first child (for visual consistency with upper pipe)
+    const placeholderRect = this.scene.add.rectangle(0, 0, 80, 192, 0xff8c00, 1);
+    placeholderRect.setOrigin(0, 0);
+    placeholderRect.setName('placeholderRect');
+    floatingPipeContainer.addAt(placeholderRect, 0);
+    (floatingPipeContainer as any).placeholderRect = placeholderRect;
+
+    // Create green walkable platform on top (serves as both visual and physics)
     const greenPlatform = this.scene.add.rectangle(
       40, 
       16, // Position at top of container
@@ -32,45 +41,26 @@ export default class FloatingPipeManager {
       0x66ff00
     );
     floatingPipeContainer.add(greenPlatform);
+    this.scene.physics.add.existing(greenPlatform);
+    (greenPlatform.body as Phaser.Physics.Arcade.Body).setImmovable(true);
+    this.greenHitboxes.add(greenPlatform);
+    (floatingPipeContainer as any).greenHitbox = greenPlatform;
     
-    // Create blue ceiling at the bottom
-    const blueCeiling = this.scene.add.rectangle(
-      40, 
-      176, // Position at bottom of container (200 - 16)
-      80, 
-      32, 
-      0x00ffff // Same cyan color as upper pipe blue hitbox
-    );
-    floatingPipeContainer.add(blueCeiling);
-    
-    // Create separate physics body for blue ceiling detection
+    // Remove creation of separate visual blue ceiling
+    // Create blue hitbox at the bottom (serves as both visual and physics)
     const blueHitbox = this.scene.add.rectangle(
-      x + 40, // Absolute world position
-      y + 176, // Absolute world position
+      40, // Centered horizontally in the container
+      176, // Position at bottom of container
       80, 
       32, 
-      0x00ffff, // Same cyan color as upper pipe blue hitbox
-      0.5 // Semi-transparent for debugging
+      0x00ffff // Cyan color
     );
+    floatingPipeContainer.add(blueHitbox);
     this.scene.physics.add.existing(blueHitbox);
     (blueHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
     (blueHitbox.body as Phaser.Physics.Arcade.Body).pushable = false;
     this.blueHitboxes.add(blueHitbox);
     (floatingPipeContainer as any).blueHitbox = blueHitbox;
-    
-    // Create separate physics body for green platform detection
-    const greenHitbox = this.scene.add.rectangle(
-      x + 40, // Absolute world position
-      y + 16, // Absolute world position
-      80, 
-      32, 
-      0x66ff00, 
-      0.5 // Semi-transparent for debugging
-    );
-    this.scene.physics.add.existing(greenHitbox);
-    (greenHitbox.body as Phaser.Physics.Arcade.Body).setImmovable(true);
-    this.greenHitboxes.add(greenHitbox);
-    (floatingPipeContainer as any).greenHitbox = greenHitbox;
     
     // Set up physics for the container
     this.scene.physics.add.existing(floatingPipeContainer);
@@ -140,13 +130,13 @@ export default class FloatingPipeManager {
           const hitIndex = pipeHitboxes.indexOf(hitHitbox);
           if (hitIndex !== -1) {
             const numColumns = 5; // Match floating pipe columns
-            const hitRow = Math.floor(hitIndex / numColumns);
             const hitCol = hitIndex % numColumns;
             pipeHitboxes.forEach((hitbox, index) => {
               const row = Math.floor(index / numColumns);
               const col = index % numColumns;
-              if (col === hitCol && row > hitRow) {
+              if (col === hitCol) {
                 this.floatingPurpleHitboxes.remove(hitbox);
+                this.fallingPurpleHitboxes.add(hitbox);
                 // Optionally add to a falling group if you want to track falling cubes
                 if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
                   hitbox.body.setGravityY(400);
@@ -159,6 +149,54 @@ export default class FloatingPipeManager {
                 });
               }
             });
+            // After handling purple cubes below, check if the last column (col 0) was hit
+            if (hitCol === 0 && floatingPipe && (floatingPipe as any).blueHitbox) {
+              const blueHitbox = (floatingPipe as any).blueHitbox;
+              if (blueHitbox.body && blueHitbox.body instanceof Phaser.Physics.Arcade.Body) {
+                blueHitbox.body.setAllowGravity(true);
+                blueHitbox.body.setGravityY(400);
+                this.scene.tweens.add({
+                  targets: blueHitbox,
+                  alpha: 0,
+                  duration: 500,
+                  ease: 'Linear',
+                });
+                this.scene.tweens.add({
+                  targets: blueHitbox,
+                  angle: -45,
+                  duration: 500,
+                  ease: 'Linear',
+                });
+              }
+            }
+            // Trigger fall for the green hitbox (platform) when the middle column is hit
+            const middleColumn = Math.floor(numColumns / 2);
+            if (hitCol === middleColumn && floatingPipe && (floatingPipe as any).greenHitbox) {
+              const greenHitbox = (floatingPipe as any).greenHitbox;
+              if (greenHitbox.body && greenHitbox.body instanceof Phaser.Physics.Arcade.Body) {
+                greenHitbox.body.setImmovable(false);
+                greenHitbox.body.setAllowGravity(true);
+                greenHitbox.body.setGravityY(800);
+                greenHitbox.body.setVelocityY(-20);
+                this.scene.time.delayedCall(100, () => {
+                  if (greenHitbox.body && greenHitbox.body instanceof Phaser.Physics.Arcade.Body) {
+                    greenHitbox.body.setGravityY(800 * 3);
+                  }
+                });
+                this.scene.tweens.add({
+                  targets: greenHitbox,
+                  alpha: 0,
+                  duration: 500,
+                  ease: 'Linear',
+                });
+                this.scene.tweens.add({
+                  targets: greenHitbox,
+                  angle: -45,
+                  duration: 500,
+                  ease: 'Linear',
+                });
+              }
+            }
           }
         }
       });
