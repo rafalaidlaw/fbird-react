@@ -5,12 +5,17 @@ export default class FloatingPipeManager {
   public pipes: Phaser.Physics.Arcade.Group;
   public greenHitboxes: Phaser.Physics.Arcade.Group;
   public blueHitboxes: Phaser.Physics.Arcade.Group;
+  // Add a group for floating pipe purple cubes
+  public floatingPurpleHitboxes: Phaser.Physics.Arcade.Group;
+  public ledgeGrabHitboxes: Phaser.Physics.Arcade.Group;
 
   constructor(scene: Phaser.Scene, config: any, difficulties: any, currentDifficulty: string, upperPipeManager: any, lowerPipeManager: any) {
     this.scene = scene;
     this.pipes = this.scene.physics.add.group();
     this.greenHitboxes = this.scene.physics.add.group();
     this.blueHitboxes = this.scene.physics.add.group();
+    this.floatingPurpleHitboxes = this.scene.physics.add.group();
+    this.ledgeGrabHitboxes = this.scene.physics.add.group();
   }
 
   // Create a floating pipe at the specified position
@@ -75,6 +80,54 @@ export default class FloatingPipeManager {
     this.pipes.add(floatingPipeContainer as any);
     
     return floatingPipeContainer;
+  }
+
+  // Generate purple cubes for the floating pipe (between green and blue platforms)
+  public generatePurpleCubesForFloatingPipe(floatingPipeContainer: any): void {
+    // Check if purple cubes already exist for this pipe
+    if ((floatingPipeContainer as any).purpleHitboxes && (floatingPipeContainer as any).purpleHitboxes.length > 0) {
+      return; // Already generated, skip
+    }
+
+    const numColumns = 5; // Match brown cube columns
+    const hitboxWidth = 16;
+    const pipeWidth = 80;
+    const pipeHeight = 200;
+    const greenPlatformHeight = 32;
+    const blueCeilingHeight = 32;
+    const availableHeight = pipeHeight - greenPlatformHeight - blueCeilingHeight; // 200 - 32 - 32 = 136
+    const numRows = Math.floor(availableHeight / hitboxWidth); // 136 / 16 = 8 rows
+
+    // Optionally destroy placeholder rectangle if present
+    if ((floatingPipeContainer as any).placeholderRect) {
+      (floatingPipeContainer as any).placeholderRect.destroy();
+      (floatingPipeContainer as any).placeholderRect = undefined;
+    }
+
+    // Create grid of purple hitboxes for this floating pipe (5 columns across, 8 rows)
+    const pipeHitboxes: Phaser.GameObjects.Rectangle[] = [];
+    for (let row = 0; row < numRows; row++) {
+      for (let col = 0; col < numColumns; col++) {
+        // Set container-relative position
+        const exactX = (col * hitboxWidth);
+        const exactY = greenPlatformHeight + (row * hitboxWidth); // Start below green platform
+
+        const hitbox = this.scene.add.rectangle(0, 0, hitboxWidth, hitboxWidth, 0xff8c00, 1) as Phaser.GameObjects.Rectangle & { canDamage?: boolean };
+        hitbox.setOrigin(0, 0);
+        hitbox.setPosition(exactX, exactY);
+
+        this.scene.physics.add.existing(hitbox);
+        (hitbox.body as Phaser.Physics.Arcade.Body).setImmovable(false); // Allow movement for gravity/velocity
+        (hitbox.body as Phaser.Physics.Arcade.Body).setSize(hitboxWidth, hitboxWidth);
+        (hitbox.body as Phaser.Physics.Arcade.Body).setAllowGravity(true); // Enable gravity from creation
+        (hitbox.body as Phaser.Physics.Arcade.Body).setGravityY(400);
+        hitbox.canDamage = true;
+        floatingPipeContainer.add(hitbox); // Add to container for rendering
+        this.floatingPurpleHitboxes.add(hitbox); // Add to global group
+        pipeHitboxes.push(hitbox);
+      }
+    }
+    (floatingPipeContainer as any).purpleHitboxes = pipeHitboxes;
   }
 
   // Remove pipes that are far behind the player (for recycling)

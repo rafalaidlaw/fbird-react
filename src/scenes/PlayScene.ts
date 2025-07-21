@@ -745,6 +745,20 @@ class PlayScene extends BaseScene {
         this
       );
     }
+
+    // Set up overlap detection with floating pipe containers to trigger purple cube generation
+    if (this.player && this.player.lookAheadHitbox && this.floatingPipeManager.pipes) {
+      this.physics.add.overlap(
+        this.player.lookAheadHitbox,
+        this.floatingPipeManager.pipes,
+        (lookAhead: any, pipeContainer: any) => {
+          // Only generate purple cubes for floating pipes
+          this.floatingPipeManager.generatePurpleCubesForFloatingPipe(pipeContainer);
+        },
+        undefined,
+        this
+      );
+    }
   }
 
 
