@@ -953,6 +953,130 @@ export default class Player {
     return true;
   }
 
+  // Handles collision with a brown hitbox (floating pipe cubes)
+  public handleBrownHitboxCollision(brownHitbox: Phaser.GameObjects.GameObject, pipeManager: any, isGameOver: boolean): boolean {
+    // Check opacity - if cube is fading (alpha < 1), don't allow collision
+    if ((brownHitbox as any).alpha < 1) return false;
+    
+    // Find the specific pipe that contains this brown hitbox and check if any cube in that pipe is falling
+    const floatingPipeManager = (this.scene as any).floatingPipeManager;
+    let shouldDisableDamage = false;
+    if (floatingPipeManager && floatingPipeManager.pipes) {
+      floatingPipeManager.pipes.getChildren().forEach((pipe: any) => {
+        if ((pipe as any).brownHitboxes) {
+          const pipeHitboxes = (pipe as any).brownHitboxes as Phaser.GameObjects.Rectangle[];
+          // Check if this specific brown hitbox belongs to this pipe
+          if (pipeHitboxes.includes(brownHitbox as Phaser.GameObjects.Rectangle)) {
+            const hasFallingCube = pipeHitboxes.some((hitbox: any) => hitbox.alpha < 1);
+            const hasUsedLedgeGrab = (pipe as any).ledgeGrabUsed === true;
+            if (hasFallingCube || hasUsedLedgeGrab) {
+              // If any cube in this specific pipe is falling OR ledge grab has been used, disable damage for all cubes in this pipe
+              pipeHitboxes.forEach((hitbox: any) => {
+                (hitbox as any).canDamage = false;
+              });
+              shouldDisableDamage = true;
+            }
+          }
+        }
+      });
+    }
+    
+    // If damage should be disabled, return early
+    if (shouldDisableDamage) return false;
+    
+    // Always trigger fall for hitboxes in the same column on any brown cube contact (including dash)
+    // This must happen BEFORE canDamage check so dash collisions still trigger column collapse
+    pipeManager.triggerFallForHitboxesInColumn(brownHitbox as Phaser.GameObjects.Rectangle, isGameOver);
+    if (this.isDashing) {
+      
+    }
+    
+    // Check canDamage
+    if ((brownHitbox as any).canDamage === false) return false;
+    
+    // Check global hitstop cooldown
+    if (this.hitstopCooldownActive) return false;
+    
+    // During dash: trigger brown boxes but don't take damage
+    if (this.isDashing) {
+      // Apply destruction effect to the hit brown box
+      const hitbox = brownHitbox as Phaser.GameObjects.Rectangle;
+      if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
+        // Move to falling group to prevent collision with player
+        (this.scene as any).floatingPipeManager.brownHitboxes.remove(hitbox);
+        (this.scene as any).floatingPipeManager.fallingBrownHitboxes.add(hitbox);
+        
+        hitbox.body.moves = true; // Re-enable individual movement for destruction
+        hitbox.body.setAllowGravity(true);
+        hitbox.body.setGravityY(800);
+        const randomX = Phaser.Math.Between(-100, 100);
+        const randomY = Phaser.Math.Between(-150, -25);
+        hitbox.body.setVelocity(randomX, randomY);
+      }
+      // Start fading immediately when velocity is applied
+      this.scene.tweens.add({
+        targets: hitbox,
+        alpha: 0,
+        duration: 1000, // Same as triggerFallForHitboxesInColumn
+        ease: 'Linear',
+      });
+      
+      return false; // No damage during dash
+    }
+    
+    const anim = this.sprite.anims;
+    // Check if currently in swing animation (any frame) or holding on last frame OR have active attack hitbox
+    const isInSwingAnimation = (anim.isPlaying && anim.currentAnim?.key === "kilboy_swing_anim") || this.isHoldingSwingFrame || !!this.attackHitbox;
+    // Check if currently in attack animation on first frame  
+    const isInAttackAnimationFirstFrame = anim.isPlaying && anim.currentAnim?.key === "kilboy_swing_anim" && anim.currentFrame?.index === 1;
+    
+    // Special case: Attack destruction (first frame + upward movement)
+    if (isInAttackAnimationFirstFrame && this.sprite && this.sprite.body && (this.sprite.body as Phaser.Physics.Arcade.Body).velocity.y < 0) {
+      // Immediately mark this cube as unable to damage to prevent multiple hitstop triggers
+      (brownHitbox as any).canDamage = false;
+      // Activate global hitstop cooldown
+      this.hitstopCooldownActive = true;
+      this.scene.time.delayedCall(1500, () => {
+        this.hitstopCooldownActive = false;
+      });
+      
+      // Apply gravity to the individual brown hitbox (attack destruction)
+      const hitbox = brownHitbox as Phaser.GameObjects.Rectangle;
+      if (hitbox.body && hitbox.body instanceof Phaser.Physics.Arcade.Body) {
+        // Move to falling group to prevent collision with player
+        (this.scene as any).floatingPipeManager.brownHitboxes.remove(hitbox);
+        (this.scene as any).floatingPipeManager.fallingBrownHitboxes.add(hitbox);
+        
+        hitbox.body.moves = true; // Re-enable individual movement for destruction
+        hitbox.body.setAllowGravity(true);
+        hitbox.body.setGravityY(800); // Stronger gravity
+        // Randomize velocity for more varied destruction effect
+        const randomX = Phaser.Math.Between(-100, 100);
+        const randomY = Phaser.Math.Between(-150, -25);
+        hitbox.body.setVelocity(randomX, randomY);
+      }
+      // Start fading immediately when velocity is applied
+      this.scene.tweens.add({
+        targets: hitbox,
+        alpha: 0,
+        duration: 1000,
+        ease: 'Linear',
+      });
+      return false; // No damage during attack destruction
+    }
+    
+    // If swinging (any frame) or have active attack hitbox, immune to damage
+    if (isInSwingAnimation) {
+      return false; // No damage during swing animation
+    }
+    
+    // Brown cubes provide direct damage when touched
+    
+    // Not moving upward: trigger damage and stop velocity
+    this.stopVelocityOnDamage();
+    return true;
+  }
+
   // Stop velocity when taking damage from hitboxes
   private stopVelocityOnDamage() {
     if (this.sprite && this.sprite.body) {
