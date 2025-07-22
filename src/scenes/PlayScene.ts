@@ -238,8 +238,8 @@ class PlayScene extends BaseScene {
       ...this.lowerPipeManager.maroonHitboxes.getChildren(),
       ...this.lowerPipeManager.fallingMaroonHitboxes.getChildren(),
       ...this.upperPipeManager.fallingPurpleHitboxes.getChildren(),
-      ...this.floatingPipeManager.brownHitboxes.getChildren(),
-      ...this.floatingPipeManager.fallingBrownHitboxes.getChildren()
+      ...this.floatingPipeManager.floatingPurpleHitboxes.getChildren(),
+      ...this.floatingPipeManager.fallingPurpleHitboxes.getChildren()
     ];
     gravityObjects.forEach(obj => {
       if (obj.body && obj.body instanceof Phaser.Physics.Arcade.Body) {
@@ -351,9 +351,9 @@ class PlayScene extends BaseScene {
     });
     
     // Check brown hitboxes for X velocity and apply gravity/fading
-    this.floatingPipeManager.brownHitboxes.getChildren().forEach((brownHitbox: any) => {
-      if (brownHitbox.body && brownHitbox.body instanceof Phaser.Physics.Arcade.Body) {
-        const body = brownHitbox.body as Phaser.Physics.Arcade.Body;
+    this.floatingPipeManager.floatingPurpleHitboxes.getChildren().forEach((purpleHitbox: any) => {
+      if (purpleHitbox.body && purpleHitbox.body instanceof Phaser.Physics.Arcade.Body) {
+        const body = purpleHitbox.body as Phaser.Physics.Arcade.Body;
         
         // If brown hitbox has significant velocity, apply gravity and fading
         if (Math.abs(body.velocity.x) > 5) { // Higher threshold to avoid moving stationary hitboxes
@@ -369,9 +369,9 @@ class PlayScene extends BaseScene {
           }
           
           // Start fading if not already fading
-          if (brownHitbox.alpha > 0) {
+          if (purpleHitbox.alpha > 0) {
             this.tweens.add({
-              targets: brownHitbox,
+              targets: purpleHitbox,
               alpha: 0,
               duration: 1000, // Same as triggerFallForHitboxesInColumn
               ease: 'Linear',
@@ -382,9 +382,9 @@ class PlayScene extends BaseScene {
     });
     
     // Check falling brown hitboxes for X velocity and apply gravity/fading
-    this.floatingPipeManager.fallingBrownHitboxes.getChildren().forEach((brownHitbox: any) => {
-      if (brownHitbox.body && brownHitbox.body instanceof Phaser.Physics.Arcade.Body) {
-        const body = brownHitbox.body as Phaser.Physics.Arcade.Body;
+    this.floatingPipeManager.fallingPurpleHitboxes.getChildren().forEach((purpleHitbox: any) => {
+      if (purpleHitbox.body && purpleHitbox.body instanceof Phaser.Physics.Arcade.Body) {
+        const body = purpleHitbox.body as Phaser.Physics.Arcade.Body;
         
         // If brown hitbox has significant velocity, apply gravity and fading
         if (Math.abs(body.velocity.x) > 5) { // Higher threshold to avoid moving stationary hitboxes
@@ -400,9 +400,9 @@ class PlayScene extends BaseScene {
           }
           
           // Start fading if not already fading
-          if (brownHitbox.alpha > 0) {
+          if (purpleHitbox.alpha > 0) {
             this.tweens.add({
-              targets: brownHitbox,
+              targets: purpleHitbox,
               alpha: 0,
               duration: 1000, // Same as triggerFallForHitboxesInColumn
               ease: 'Linear',
@@ -791,30 +791,6 @@ class PlayScene extends BaseScene {
       );
     }
 
-    // Sprite collides with brown boxes (for damage)
-    if (this.player && this.floatingPipeManager.brownHitboxes) {
-      this.physics.add.collider(
-        this.player.sprite,
-        this.floatingPipeManager.brownHitboxes,
-        (obj1: any, obj2: any) => {
-          if (obj1 instanceof Phaser.GameObjects.GameObject && obj2 instanceof Phaser.GameObjects.GameObject) {
-            const shouldTakeDamage = this.player.handleBrownHitboxCollision(obj2, this.floatingPipeManager, this.isGameOver);
-            // Check if Kilboy is in swing state (actively attacking)
-            const isInAttackSwing = this.player.sprite.anims.isPlaying && this.player.sprite.anims.currentAnim?.key === "kilboy_swing_anim";
-            // Prevent damage if player is in attack swing animation
-            if (shouldTakeDamage && !this.player.isInvincible && !isInAttackSwing) {
-              if (this.player.takeHit()) {
-                this.gameOver();
-              }
-              this.uiManager.updateHealthUI(this.player.getHealth());
-            }
-          }
-        },
-        undefined,
-        this
-      );
-    }
-
     // Look ahead hitbox collision detection for UpperPipeManager pipes
     if (this.player && this.player.lookAheadHitbox) {
       
@@ -849,8 +825,8 @@ class PlayScene extends BaseScene {
             // Generate maroon cubes for lower pipe
             this.lowerPipeManager.generateMaroonCubesForPipe(pipeContainer);
           } else if ((pipeContainer as any).blueHitbox && (pipeContainer as any).greenHitbox) {
-            // Generate brown cubes for floating pipe
-            this.floatingPipeManager.generateBrownCubesForPipe(pipeContainer);
+            // Generate purple cubes for floating pipe
+            this.floatingPipeManager.generatePurpleCubesForFloatingPipe(pipeContainer);
           }
         },
         undefined,
@@ -874,8 +850,8 @@ class PlayScene extends BaseScene {
             // Generate maroon cubes for lower pipe
             this.lowerPipeManager.generateMaroonCubesForPipe(pipeContainer);
           } else if ((pipeContainer as any).blueHitbox && (pipeContainer as any).greenHitbox) {
-            // Generate brown cubes for floating pipe
-            this.floatingPipeManager.generateBrownCubesForPipe(pipeContainer);
+            // Generate purple cubes for floating pipe
+            this.floatingPipeManager.generatePurpleCubesForFloatingPipe(pipeContainer);
           }
         },
         undefined,
@@ -1134,12 +1110,6 @@ class PlayScene extends BaseScene {
     if (this.floatingPipeManager.greenHitboxes) {
       this.floatingPipeManager.greenHitboxes.getChildren().forEach((hitbox: any) => {
         if (this.player && this.player.sprite && this.physics.overlap(this.player.sprite, hitbox)) {
-<<<<<<< HEAD
-          // Only allow standing on green hitbox if it's not falling (gravity.y === 0)
-          const hitboxBody = hitbox.body as Phaser.Physics.Arcade.Body;
-          const isFalling = hitboxBody && hitboxBody.gravity.y > 0;
-          if (!isFalling) {
-=======
           // Check if the green hitbox is falling (has gravity applied)
           const hitboxBody = hitbox.body as Phaser.Physics.Arcade.Body;
           const isFalling = hitboxBody && hitboxBody.gravity.y > 0;
@@ -1159,7 +1129,6 @@ class PlayScene extends BaseScene {
           
           // Only allow standing on green hitbox if it's not falling AND no brown cubes are spawned
           if (!isFalling && !pipeHasBrownCubes) {
->>>>>>> 9436357343bc6552e1b302a71b612c7d3880964f
             isOverlapping = true;
             if (!firstOverlappingGreen) firstOverlappingGreen = hitbox;
           }
