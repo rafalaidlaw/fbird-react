@@ -143,9 +143,9 @@ class PlayScene extends BaseScene {
     this.player.preUpdate(); // (now does nothing, but kept for structure)
     this.checkGameStatus();
     // Recycle static pipes that are far behind the player
-    this.upperPipeManager.recyclePipes(this.player.sprite.x, 1000);
-    this.lowerPipeManager.recyclePipes(this.player.sprite.x, 1000);
-    this.floatingPipeManager.recyclePipes(this.player.sprite.x, 1000);
+    this.upperPipeManager.recyclePipes(this.player.sprite.x, 200);
+    this.lowerPipeManager.recyclePipes(this.player.sprite.x, 200);
+    this.floatingPipeManager.recyclePipes(this.player.sprite.x, 200);
     // Recycle chunks that are far behind the player
     this.chunkManager.recycleChunks(this.player.sprite.x, 1000);
     this.checkGreenHitboxOverlap();
@@ -1191,6 +1191,11 @@ class PlayScene extends BaseScene {
       this.floatingPipeManager.blueHitboxes.getChildren().forEach((hitbox: any) => {
         if (this.player && this.player.upperHitbox && this.physics.overlap(this.player.upperHitbox, hitbox)) {
           isOverlapping = true;
+          // Add 45ms flap prevention for floating pipe blue box, in addition to current logic
+          this.player.canFlap = false;
+          this.time.delayedCall(45, () => {
+            this.player.canFlap = true;
+          });
         }
       });
     }

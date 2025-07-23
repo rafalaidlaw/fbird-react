@@ -206,11 +206,12 @@ export default class FloatingPipeManager {
   }
 
   // Remove pipes that are far behind the player (for recycling)
-  public recyclePipes(playerX: number, recycleDistance: number = 1000): void {
+  public recyclePipes(playerX: number, recycleDistance: number = 100): void {
     const pipesToRemove: any[] = [];
-    
+    const cameraLeft = this.scene.cameras.main.worldView.x;
     this.pipes.getChildren().forEach((pipe: any) => {
-      if (pipe.x < playerX - recycleDistance) {
+      if (pipe.x < cameraLeft - recycleDistance) {
+        console.log(`[PIPE RECYCLE DEBUG] pipe.x=${pipe.x}, cameraLeft=${cameraLeft}, recycleDistance=${recycleDistance}, threshold=${cameraLeft - recycleDistance}`);
         pipesToRemove.push(pipe);
       }
     });
