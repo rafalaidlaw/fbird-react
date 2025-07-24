@@ -25,6 +25,7 @@ class PreloadScene extends Phaser.Scene {
     this.load.image("health-face", "assets/health-face.png");
     this.load.image("dead-face", "assets/dead-face.png");
     this.load.image("enemy_met", "assets/met_enemy.png"); // Preload enemy texture
+    this.load.image('bush', 'assets/bush-16x16.png');
   }
 
   create(): void {

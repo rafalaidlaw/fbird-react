@@ -99,14 +99,16 @@ export default class FloatingPipeManager {
     }
 
     // Create grid of purple hitboxes for this floating pipe (5 columns across, 8 rows)
-    const pipeHitboxes: Phaser.GameObjects.Rectangle[] = [];
+    const pipeHitboxes: (Phaser.GameObjects.Rectangle | Phaser.GameObjects.Image)[] = [];
     for (let row = 0; row < numRows; row++) {
       for (let col = 0; col < numColumns; col++) {
         // Set container-relative position
         const exactX = (col * hitboxWidth);
         const exactY = greenPlatformHeight + (row * hitboxWidth); // Start below green platform
-        const hitbox = this.scene.add.rectangle(0, 0, hitboxWidth, hitboxWidth, 0xff8c00, 1) as Phaser.GameObjects.Rectangle & { canDamage?: boolean };
+        // Use bush texture instead of rectangle
+        const hitbox = this.scene.add.image(0, 0, 'bush') as Phaser.GameObjects.Image & { canDamage?: boolean };
         hitbox.setOrigin(0, 0);
+        hitbox.setDisplaySize(hitboxWidth, hitboxWidth);
         hitbox.setPosition(exactX, exactY);
         this.scene.physics.add.existing(hitbox);
         (hitbox.body as Phaser.Physics.Arcade.Body).setImmovable(false); // Allow movement for gravity/velocity
@@ -128,7 +130,7 @@ export default class FloatingPipeManager {
       this.pipes.getChildren().forEach((pipe: any) => {
         const floatingPipe = pipe as Phaser.GameObjects.Container;
         if (floatingPipe && (floatingPipe as any).purpleHitboxes) {
-          const pipeHitboxes = (floatingPipe as any).purpleHitboxes as Phaser.GameObjects.Rectangle[];
+          const pipeHitboxes = (floatingPipe as any).purpleHitboxes as (Phaser.GameObjects.Rectangle | Phaser.GameObjects.Image)[];
           const hitIndex = pipeHitboxes.indexOf(hitHitbox);
           if (hitIndex !== -1) {
             const numColumns = 5; // Match floating pipe columns
