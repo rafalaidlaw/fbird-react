@@ -1395,6 +1395,10 @@ export default class Player {
   // Dash state: disables jump, sets x velocity to +50, tweens back to 0 over 100ms, then re-enables jump
   private startDash() {
     if (this.isDashing) return;
+    // Award 100 points for triggering dash, only when a new dash starts
+    if (this.scene && typeof (this.scene as any).increaseScore === 'function') {
+      (this.scene as any).increaseScore(1000);
+    }
     this.isDashing = true;
     this.canFlap = false;
     if (this.dashTween) this.dashTween.stop();

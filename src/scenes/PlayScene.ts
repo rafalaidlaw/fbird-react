@@ -280,7 +280,7 @@ class PlayScene extends BaseScene {
             this.tweens.add({
               targets: purpleHitbox,
               alpha: 0,
-                              duration: UpperPipeManager.PURPLE_CUBE_FADE_DURATION,
+              duration: UpperPipeManager.PURPLE_CUBE_FADE_DURATION,
               ease: 'Linear',
             });
           }
@@ -375,6 +375,13 @@ class PlayScene extends BaseScene {
               alpha: 0,
               duration: 1000, // Same as triggerFallForHitboxesInColumn
               ease: 'Linear',
+              onUpdate: (tween, target) => {
+                // Only increment score once, when alpha passes below 0.9
+                if (!purpleHitbox._scoreAdded && purpleHitbox.alpha < 0.9) {
+                  this.increaseScore();
+                  purpleHitbox._scoreAdded = true;
+                }
+              },
             });
           }
         }
@@ -406,6 +413,12 @@ class PlayScene extends BaseScene {
               alpha: 0,
               duration: 1000, // Same as triggerFallForHitboxesInColumn
               ease: 'Linear',
+              onUpdate: (tween, target) => {
+                if (!purpleHitbox._scoreAdded && purpleHitbox.alpha < 0.9) {
+                  this.increaseScore();
+                  purpleHitbox._scoreAdded = true;
+                }
+              },
             });
           }
         }
@@ -439,6 +452,12 @@ class PlayScene extends BaseScene {
               alpha: 0,
               duration: 1000,
               ease: 'Linear',
+              onUpdate: (tween, target) => {
+                if (!purpleHitbox._scoreAdded && purpleHitbox.alpha < 0.9) {
+                  this.increaseScore();
+                  purpleHitbox._scoreAdded = true;
+                }
+              },
             });
           }
         }
@@ -458,6 +477,12 @@ class PlayScene extends BaseScene {
             alpha: 0,
             duration: 1000,
             ease: 'Linear',
+            onUpdate: (tween, target) => {
+              if (!purpleHitbox._scoreAdded && purpleHitbox.alpha < 0.9) {
+                this.increaseScore();
+                purpleHitbox._scoreAdded = true;
+              }
+            },
           });
         }
       }
@@ -1239,8 +1264,8 @@ class PlayScene extends BaseScene {
     this.uiManager.updateJumpRectangles(this.jumpCount);
   }
 
-  private increaseScore(): void {
-    this.score++;
+  public increaseScore(amount: number = 1): void {
+    this.score += amount;
     this.uiManager.updateScore(this.score);
   }
 

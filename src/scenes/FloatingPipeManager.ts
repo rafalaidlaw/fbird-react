@@ -164,6 +164,12 @@ export default class FloatingPipeManager {
                   alpha: 0,
                   duration: 500,
                   ease: 'Linear',
+                  onUpdate: () => {
+                    if (!blueHitbox._scoreAdded && blueHitbox.alpha < 0.9 && this.scene.increaseScore) {
+                      this.scene.increaseScore(10);
+                      blueHitbox._scoreAdded = true;
+                    }
+                  },
                 });
                 this.scene.tweens.add({
                   targets: blueHitbox,
@@ -192,6 +198,12 @@ export default class FloatingPipeManager {
                   alpha: 0,
                   duration: 500,
                   ease: 'Linear',
+                  onUpdate: () => {
+                    if (!greenHitbox._scoreAdded && greenHitbox.alpha < 0.9 && this.scene.increaseScore) {
+                      this.scene.increaseScore(10);
+                      greenHitbox._scoreAdded = true;
+                    }
+                  },
                 });
                 this.scene.tweens.add({
                   targets: greenHitbox,
