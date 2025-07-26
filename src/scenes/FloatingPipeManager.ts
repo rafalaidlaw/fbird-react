@@ -24,12 +24,32 @@ export default class FloatingPipeManager {
   createFloatingPipe(x: number, y: number): any {
     // Create main floating pipe container
     const floatingPipeContainer = this.scene.add.container(x, y);
-    // Add placeholder orange rectangle as the first child (for visual consistency with upper pipe)
-    const placeholderRect = this.scene.add.rectangle(0, 0, 80, 192, 0xff8c00, 1);
-    placeholderRect.setOrigin(0, 0);
-    placeholderRect.setName('placeholderRect');
-    floatingPipeContainer.addAt(placeholderRect, 0);
-    (floatingPipeContainer as any).placeholderRect = placeholderRect;
+    
+    // Create tiled bush pattern instead of placeholder rectangle
+    const bushSize = 16;
+    const pipeWidth = 80;
+    const pipeHeight = 192;
+    const numCols = pipeWidth / bushSize; // 80 / 16 = 5 columns
+    const numRows = pipeHeight / bushSize; // 192 / 16 = 12 rows
+    
+    const bushContainer = this.scene.add.container(0, 0);
+    bushContainer.setName('bushContainer');
+    
+    for (let row = 0; row < numRows; row++) {
+      for (let col = 0; col < numCols; col++) {
+        const bush = this.scene.add.image(
+          col * bushSize, 
+          row * bushSize, 
+          'bush'
+        );
+        bush.setOrigin(0, 0);
+        bush.setDisplaySize(bushSize, bushSize);
+        bushContainer.add(bush);
+      }
+    }
+    
+    floatingPipeContainer.addAt(bushContainer, 0);
+    (floatingPipeContainer as any).bushContainer = bushContainer;
 
     // Create green walkable platform on top (serves as both visual and physics)
     const greenPlatform = this.scene.add.rectangle(
@@ -92,10 +112,10 @@ export default class FloatingPipeManager {
     const availableHeight = pipeHeight - greenPlatformHeight - blueCeilingHeight; // 192 - 32 - 32 = 128
     const numRows = Math.floor(availableHeight / hitboxWidth); // 128 / 16 = 8 rows
 
-    // Optionally destroy placeholder rectangle if present
-    if ((floatingPipeContainer as any).placeholderRect) {
-      (floatingPipeContainer as any).placeholderRect.destroy();
-      (floatingPipeContainer as any).placeholderRect = undefined;
+    // Optionally destroy bush container if present
+    if ((floatingPipeContainer as any).bushContainer) {
+      (floatingPipeContainer as any).bushContainer.destroy();
+      (floatingPipeContainer as any).bushContainer = undefined;
     }
 
     // Create grid of purple hitboxes for this floating pipe (5 columns across, 8 rows)
