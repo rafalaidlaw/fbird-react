@@ -185,8 +185,8 @@ export default class FloatingPipeManager {
                   duration: 500,
                   ease: 'Linear',
                   onUpdate: () => {
-                    if (!blueHitbox._scoreAdded && blueHitbox.alpha < 0.9 && this.scene.increaseScore) {
-                      this.scene.increaseScore(10);
+                    if (!blueHitbox._scoreAdded && blueHitbox.alpha < 0.9 && (this.scene as any).increaseScore) {
+                      (this.scene as any).increaseScore(10);
                       blueHitbox._scoreAdded = true;
                     }
                   },
@@ -219,8 +219,8 @@ export default class FloatingPipeManager {
                   duration: 500,
                   ease: 'Linear',
                   onUpdate: () => {
-                    if (!greenHitbox._scoreAdded && greenHitbox.alpha < 0.9 && this.scene.increaseScore) {
-                      this.scene.increaseScore(10);
+                    if (!greenHitbox._scoreAdded && greenHitbox.alpha < 0.9 && (this.scene as any).increaseScore) {
+                      (this.scene as any).increaseScore(10);
                       greenHitbox._scoreAdded = true;
                     }
                   },

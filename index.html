@@ -3,11 +3,40 @@
   <head>
     <meta charset="utf-8" />
     <link rel="icon" type="image/svg+xml" href="assets/favi-dead.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap"
+      rel="stylesheet"
+    />
     <style>
       body {
         padding: 10px;
       }
+
+      @font-face {
+        font-family: "BKShatteredScore";
+        src: url("assets/BKShatteredScore.ttf") format("truetype");
+        font-weight: normal;
+        font-style: normal;
+        font-display: block;
+      }
+
+      .press-start-2p-regular {
+        font-family: "Press Start 2P", system-ui;
+        font-weight: 400;
+        font-style: normal;
+      }
+
+      /* Preload the font by applying it to a hidden element */
+      .font-preload {
+        font-family: "BKShatteredScore";
+        position: absolute;
+        left: -9999px;
+        visibility: hidden;
+      }
     </style>
+    <div class="font-preload">0123456789</div>
   </head>
   <body></body>
 </html>

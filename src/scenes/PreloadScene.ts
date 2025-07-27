@@ -26,6 +26,14 @@ class PreloadScene extends Phaser.Scene {
     this.load.image("dead-face", "assets/dead-face.png");
     this.load.image("enemy_met", "assets/met_enemy.png"); // Preload enemy texture
     this.load.image('bush', 'assets/bush-16x16.png');
+    
+    // Preload the custom font using a custom loader
+    this.load.on('complete', () => {
+      // Font should be loaded by CSS @font-face, but we can ensure it's ready
+      document.fonts.ready.then(() => {
+        console.log('Fonts loaded in PreloadScene');
+      });
+    });
   }
 
   create(): void {

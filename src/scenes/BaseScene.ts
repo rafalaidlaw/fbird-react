@@ -13,15 +13,15 @@ class BaseScene extends Phaser.Scene {
   protected screenCenter: [number, number];
   protected fontSize: number;
   protected lineHeight: number;
-  protected fontOptions: { fontSize: string; color: string };
+  protected fontOptions: { fontSize: string; color: string; fontFamily: string };
 
   constructor(key: string, config: SceneConfig) {
     super(key);
     this.config = config;
     this.screenCenter = [config.width / 2, config.height / 2];
-    this.fontSize = 34;
-    this.lineHeight = 42;
-    this.fontOptions = { fontSize: `${this.fontSize}px`, color: "#fff" };
+    this.fontSize = 24;
+    this.lineHeight = 32;
+    this.fontOptions = { fontSize: `${this.fontSize}px`, color: "#fff", fontFamily: "BKShatteredScore" };
   }
 
   create(): void {
