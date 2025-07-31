@@ -34,16 +34,16 @@ export default class HitStop {
     // Only pause objects if this is the first hitstop
     if (this.activeHitstops === 1) {
 
-    // Pause the player's attack hitbox timers if they exist
+    // Pause the player's timers if they exist
     const player = (this.scene as any).player;
     if (player) {
-      if (player.attackHitboxTimer && !player.attackHitboxTimer.paused) {
-        player.attackHitboxTimer.paused = true;
-        this.pausedTimers.push(player.attackHitboxTimer);
+      if (player.hitStopCheckTimer && !player.hitStopCheckTimer.paused) {
+        player.hitStopCheckTimer.paused = true;
+        this.pausedTimers.push(player.hitStopCheckTimer);
       }
-      if (player.attackCompletionTimer && !player.attackCompletionTimer.paused) {
-        player.attackCompletionTimer.paused = true;
-        this.pausedTimers.push(player.attackCompletionTimer);
+      if (player.swingFrameCheckTimer && !player.swingFrameCheckTimer.paused) {
+        player.swingFrameCheckTimer.paused = true;
+        this.pausedTimers.push(player.swingFrameCheckTimer);
       }
     }
 

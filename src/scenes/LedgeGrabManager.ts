@@ -23,11 +23,11 @@ export default class LedgeGrabManager {
 
   public setupLedgeGrabDetection(): void {
     // Set up overlap detection with LedgeGrab hitboxes
-    if (!this.player.lookAheadHitbox) return;
+    if (!this.player.hitboxes.lookAheadHitbox) return;
     
     // Set up overlap detection for lower pipe ledge grab hitboxes
     this.ledgeGrabOverlap = this.scene.physics.add.overlap(
-      this.player.lookAheadHitbox,
+      this.player.hitboxes.lookAheadHitbox,
       this.lowerPipeManager.ledgeGrabHitboxes,
       (lookAhead: any, ledgeGrabHitbox: any) => {
         // Don't trigger ledge grab if Kilboy is already cutting through maroon hitboxes
@@ -49,7 +49,7 @@ export default class LedgeGrabManager {
 
     // Set up overlap detection for floating pipe ledge grab hitboxes
     this.floatingLedgeGrabOverlap = this.scene.physics.add.overlap(
-      this.player.lookAheadHitbox,
+      this.player.hitboxes.lookAheadHitbox,
       this.floatingPipeManager.ledgeGrabHitboxes,
       (lookAhead: any, ledgeGrabHitbox: any) => {
         // Don't trigger ledge grab if Kilboy is already cutting through brown hitboxes

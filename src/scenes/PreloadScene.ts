@@ -9,7 +9,16 @@ class PreloadScene extends Phaser.Scene {
     this.load.image("sky-bg", "assets/sky.png");
     this.load.image("kilboy", "assets/kilboy.png");
     this.load.image("kilboy2", "assets/kilboy_swing.png");
-    this.load.image("kilboy_run", "assets/kilboy_run.png");
+    this.load.image("kilboy_run1", "assets/kilboy_run1.png");
+    this.load.image("kilboy_run2", "assets/kilboy_run2.png");
+    this.load.image("kilboy_run3", "assets/kilboy_run3.png");
+    this.load.image("kilboy_run4", "assets/kilboy_run4.png");
+    this.load.image("kilboy_run5", "assets/kilboy_run5.png");
+    this.load.image("kilboy_run6", "assets/kilboy_run6.png");
+    this.load.image("kilboy_run7", "assets/kilboy_run7.png");
+    this.load.image("kilboy_run8", "assets/kilboy_run8.png");
+    this.load.image("kilboy_run9", "assets/kilboy_run9.png");
+    this.load.image("kilboy_run10", "assets/kilboy_run10.png");
     this.load.image("kilboy_hurt", "assets/kilboy_hurt.png");
     this.load.image("kilboy_swing_anim1", "assets/kilboy_swing_anim1.png");
     this.load.image("kilboy_swing_anim2", "assets/kilboy_swing_anim2.png");

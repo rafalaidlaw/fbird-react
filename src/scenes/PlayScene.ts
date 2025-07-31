@@ -689,8 +689,8 @@ class PlayScene extends BaseScene {
           const body = this.player.sprite.body as Phaser.Physics.Arcade.Body;
           // Only stop Y velocity, preserve X velocity for chunk-based movement
           body.setVelocityY(0);
-          // Switch to run texture when touching ground
-          this.player.sprite.setTexture("kilboy_run");
+          // Switch to run animation when touching ground
+          this.player.sprite.anims.play("kilboy_run_anim", true);
         }
       },
       undefined,
@@ -755,8 +755,8 @@ class PlayScene extends BaseScene {
           const body = this.player.sprite.body as Phaser.Physics.Arcade.Body;
           // Only stop Y velocity, preserve X velocity for chunk-based movement
           body.setVelocityY(0);
-          // Switch to run texture when touching ground
-          this.player.sprite.setTexture("kilboy_run");
+          // Switch to run animation when touching ground
+          this.player.sprite.anims.play("kilboy_run_anim", true);
         }
       },
       undefined,
@@ -778,9 +778,9 @@ class PlayScene extends BaseScene {
     // Ground plane segments are handled in createGroundSegment method
     // No need for separate collider here since each segment has its own collider
     // Upper hitbox overlaps with blue boxes (sensor-only detection)
-    if (this.player && this.player.upperHitbox && this.upperPipeManager.blueHitboxes) {
+    if (this.player && this.player.hitboxes.upperHitbox && this.upperPipeManager.blueHitboxes) {
       this.physics.add.overlap(
-        this.player.upperHitbox,
+        this.player.hitboxes.upperHitbox,
         this.upperPipeManager.blueHitboxes,
         (obj1: any, obj2: any) => {
           // Handle blue box overlap with upper hitbox
@@ -838,11 +838,11 @@ class PlayScene extends BaseScene {
     }
 
     // Look ahead hitbox collision detection for UpperPipeManager pipes
-    if (this.player && this.player.lookAheadHitbox) {
+    if (this.player && this.player.hitboxes.lookAheadHitbox) {
       
       // Set up overlap detection with purple cubes
       this.physics.add.overlap(
-        this.player.lookAheadHitbox,
+        this.player.hitboxes.lookAheadHitbox,
         this.upperPipeManager.purpleHitboxes,
         () => {
           // Cube detected ahead
@@ -858,7 +858,7 @@ class PlayScene extends BaseScene {
 
       // Set up overlap detection with pipe containers to trigger cube generation
       this.physics.add.overlap(
-        this.player.lookAheadHitbox,
+        this.player.hitboxes.lookAheadHitbox,
         this.upperPipeManager.pipes,
         (lookAhead: any, pipeContainer: any) => {
           
@@ -881,9 +881,9 @@ class PlayScene extends BaseScene {
     }
 
     // Also check ChunkManager pipes for look-ahead detection
-    if (this.player && this.player.lookAheadHitbox && this.chunkManager.pipes) {
+    if (this.player && this.player.hitboxes.lookAheadHitbox && this.chunkManager.pipes) {
       this.physics.add.overlap(
-        this.player.lookAheadHitbox,
+        this.player.hitboxes.lookAheadHitbox,
         this.chunkManager.pipes,
         (lookAhead: any, pipeContainer: any) => {
           
@@ -906,9 +906,9 @@ class PlayScene extends BaseScene {
     }
 
     // Set up overlap detection with floating pipe containers to trigger purple cube generation
-    if (this.player && this.player.lookAheadHitbox && this.floatingPipeManager.pipes) {
+    if (this.player && this.player.hitboxes.lookAheadHitbox && this.floatingPipeManager.pipes) {
       this.physics.add.overlap(
-        this.player.lookAheadHitbox,
+        this.player.hitboxes.lookAheadHitbox,
         this.floatingPipeManager.pipes,
         (lookAhead: any, pipeContainer: any) => {
           // Only generate purple cubes for floating pipes
@@ -956,13 +956,13 @@ class PlayScene extends BaseScene {
           this.player.canFlap = true;
         });
         // Destroy attack hitboxes if they exist
-        if (this.player["hitStopCheck"]) {
-          this.player["hitStopCheck"].destroy();
-          this.player["hitStopCheck"] = undefined;
+        if (this.player.hitboxes.hitStopCheck) {
+          this.player.hitboxes.hitStopCheck.destroy();
+          this.player.hitboxes.hitStopCheck = undefined;
         }
-        if (this.player["attackHitbox"]) {
-          this.player["attackHitbox"].destroy();
-          this.player["attackHitbox"] = undefined;
+        if (this.player.hitboxes.attackHitbox) {
+          this.player.hitboxes.attackHitbox.destroy();
+          this.player.hitboxes.attackHitbox = undefined;
         }
       }
     }
@@ -1187,7 +1187,7 @@ class PlayScene extends BaseScene {
       (this.player.sprite.body as Phaser.Physics.Arcade.Body).setVelocityY(0);
       // Only set texture if not holding swing frame
       if (!this.player.isHoldingSwingFrameActive) {
-        this.player.sprite.setTexture("kilboy_run");
+        this.player.sprite.anims.play("kilboy_run_anim", true);
       } else {
 
       }
@@ -1220,13 +1220,13 @@ class PlayScene extends BaseScene {
   }
 
   private checkBlueHitboxOverlap(): void {
-    if (!this.player || !this.player.upperHitbox) return;
+    if (!this.player || !this.player.hitboxes.upperHitbox) return;
     let isOverlapping = false;
     
     // Check upper pipe blue hitboxes
     if (this.upperPipeManager.blueHitboxes) {
       this.upperPipeManager.blueHitboxes.getChildren().forEach((hitbox: any) => {
-        if (this.player && this.player.upperHitbox && this.physics.overlap(this.player.upperHitbox, hitbox)) {
+        if (this.player && this.player.hitboxes.upperHitbox && this.physics.overlap(this.player.hitboxes.upperHitbox, hitbox)) {
           isOverlapping = true;
         }
       });
@@ -1235,7 +1235,7 @@ class PlayScene extends BaseScene {
     // Check floating pipe blue hitboxes
     if (this.floatingPipeManager.blueHitboxes) {
       this.floatingPipeManager.blueHitboxes.getChildren().forEach((hitbox: any) => {
-        if (this.player && this.player.upperHitbox && this.physics.overlap(this.player.upperHitbox, hitbox)) {
+        if (this.player && this.player.hitboxes.upperHitbox && this.physics.overlap(this.player.hitboxes.upperHitbox, hitbox)) {
           isOverlapping = true;
           // Add 45ms flap prevention for floating pipe blue box, in addition to current logic
           this.player.canFlap = false;
@@ -1255,13 +1255,13 @@ class PlayScene extends BaseScene {
           this.player.canFlap = true;
         });
         // Destroy attack hitboxes if they exist
-        if (this.player["hitStopCheck"]) {
-          this.player["hitStopCheck"].destroy();
-          this.player["hitStopCheck"] = undefined;
+        if (this.player.hitboxes.hitStopCheck) {
+          this.player.hitboxes.hitStopCheck.destroy();
+          this.player.hitboxes.hitStopCheck = undefined;
         }
-        if (this.player["attackHitbox"]) {
-          this.player["attackHitbox"].destroy();
-          this.player["attackHitbox"] = undefined;
+        if (this.player.hitboxes.attackHitbox) {
+          this.player.hitboxes.attackHitbox.destroy();
+          this.player.hitboxes.attackHitbox = undefined;
         }
       }
       this.isTouchingBlueHitbox = true;
