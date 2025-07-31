@@ -69,6 +69,7 @@ class PlayScene extends BaseScene {
   private skyPlaneSegments: Phaser.GameObjects.Rectangle[] = [];
   private chunkManager!: ChunkManager;
   private ledgeGrabManager!: LedgeGrabManager;
+  private toggleDebug!: Phaser.Input.Keyboard.Key;
   
   // Make PLAYER_X_VELOCITY accessible to other classes
   public readonly PLAYER_X_VELOCITY = PLAYER_X_VELOCITY;
@@ -135,6 +136,14 @@ class PlayScene extends BaseScene {
     this.createDebugUI();
     this.handleInputs();
     this.listenToEvents();
+    
+    // Initialize debug toggle
+    if (this.physics.world) {
+      this.physics.world.drawDebug = false;
+    }
+    if (this.input.keyboard) {
+      this.toggleDebug = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP);
+    }
   }
 
   update(): void {
@@ -174,6 +183,18 @@ class PlayScene extends BaseScene {
       const cameraX = Math.round(this.cameras.main.scrollX);
       const cameraY = Math.round(this.cameras.main.scrollY);
       this.debugCameraText.setText(`Cam: ${cameraX}, ${cameraY}`);
+    }
+    
+    // Handle debug toggle
+    if (Phaser.Input.Keyboard.JustDown(this.toggleDebug) && this.physics.world) {
+      if (this.physics.world.drawDebug) {
+        this.physics.world.drawDebug = false;
+        if (this.physics.world.debugGraphic) {
+          this.physics.world.debugGraphic.clear();
+        }
+      } else {
+        this.physics.world.drawDebug = true;
+      }
     }
     
     // Test ChunkManager (temporary debug)

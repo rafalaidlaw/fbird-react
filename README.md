@@ -228,6 +228,7 @@ interface ChunkTemplate {
 
 - **Space Bar**: Primary jump/swing action
 - **Mouse/Touch**: Menu navigation and pause
+- **Up Arrow**: Toggle debug mode (physics hitbox visualization)
 - **Keyboard**: Debug controls and development tools
 
 #### State Management
@@ -240,10 +241,11 @@ interface ChunkTemplate {
 
 #### Debug Features
 
-- **Hitbox Visualization**: Colored rectangles for all hitboxes
+- **Hitbox Visualization**: Colored rectangles for all hitboxes (toggle with Up Arrow)
 - **Position Tracking**: Real-time position and velocity display
 - **Chunk Information**: Current chunk and template data
 - **Performance Metrics**: Frame rate and memory usage
+- **Real-time Toggle**: Press Up Arrow to toggle physics debug visualization on/off
 
 #### Development Utilities
 
