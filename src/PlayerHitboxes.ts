@@ -14,7 +14,7 @@ export default class PlayerHitboxes {
   // Attack hitbox configuration - easily adjustable
   private static readonly ATTACK_RADIUS = 44; // Radius of the attack hitbox (10% bigger)
   private static readonly ATTACK_OFFSET_X = 45; // How far to the right of Kilboy
-  private static readonly ATTACK_OFFSET_Y = -10; // Vertical offset from Kilboy's center
+  private static readonly ATTACK_OFFSET_Y = -20; // Vertical offset from Kilboy's center
   
   // Hitstop hitbox configuration
   private static readonly HITSTOP_RADIUS = 26; // Radius of the hitstop check hitbox (smaller than attack)
@@ -35,7 +35,7 @@ export default class PlayerHitboxes {
   private createUpperHitbox() {
     const sprite = this.player.sprite;
     const hitboxWidth = sprite.width * 0.5;
-    const hitboxHeight = (sprite.height + 2) / 2; // Split height in half
+    const hitboxHeight = 26; // Split height in half
     
     // Upper hitbox for blue box collisions (sensor only)
     this.upperHitbox = this.scene.add.rectangle(sprite.x, sprite.y, hitboxWidth, hitboxHeight, 0x0000ff, 0.3);
@@ -56,9 +56,9 @@ export default class PlayerHitboxes {
     
     // Create a rectangular hitbox that extends forward from Kilboy to detect purple cubes ahead
     const lookAheadWidth = 24; // How far ahead to detect (80% smaller: 120 * 0.2)
-    const lookAheadHeight = (sprite.height); // 80% smaller
-    const lookAheadX = sprite.x + sprite.width; // Start from Kilboy's right edge
-    const lookAheadY = sprite.y + (sprite.height / 2) - (lookAheadHeight / 2); // Center vertically
+    const lookAheadHeight = (46); // 80% smaller
+    const lookAheadX = sprite.x + 78; // Start from Kilboy's right edge
+    const lookAheadY = -500; // Center vertically
     
     this.lookAheadHitbox = this.scene.add.rectangle(lookAheadX, lookAheadY, lookAheadWidth, lookAheadHeight, 0xffff00, 0.2);
     this.lookAheadHitbox.setOrigin(0, 0);
@@ -91,7 +91,7 @@ export default class PlayerHitboxes {
 
     // Use fixed values for hitstop hitbox size and position
     const hitstopX = sprite.x + PlayerHitboxes.HITSTOP_OFFSET_X;
-    const hitstopY = sprite.y + sprite.height / 2 + PlayerHitboxes.HITSTOP_OFFSET_Y;
+    const hitstopY = sprite.y + 26 + PlayerHitboxes.HITSTOP_OFFSET_Y;
     
     // Create hitStopCheck hitbox for collision detection
     this.hitStopCheck = this.scene.add.circle(hitstopX, hitstopY, PlayerHitboxes.HITSTOP_RADIUS, 0xff0000, 0.3);
@@ -282,15 +282,31 @@ export default class PlayerHitboxes {
   public createAttackHitbox() {
     const sprite = this.player.sprite;
     
-    // Prevent attack hitbox if upperHitbox is overlapping any floating pipe blue hitbox
+    // Prevent attack hitbox if upperHitbox is overlapping any blue hitbox (both floating and upper pipes)
     const floatingPipeManager = (this.scene as any).floatingPipeManager;
-    if (this.upperHitbox && floatingPipeManager && floatingPipeManager.blueHitboxes) {
+    const upperPipeManager = (this.scene as any).upperPipeManager;
+    
+    if (this.upperHitbox) {
       let isOverlappingBlue = false;
-      floatingPipeManager.blueHitboxes.getChildren().forEach((blue: any) => {
-        if (this.upperHitbox && this.scene.physics.overlap(this.upperHitbox, blue)) {
-          isOverlappingBlue = true;
-        }
-      });
+      
+      // Check floating pipe blue hitboxes
+      if (floatingPipeManager && floatingPipeManager.blueHitboxes) {
+        floatingPipeManager.blueHitboxes.getChildren().forEach((blue: any) => {
+          if (this.upperHitbox && this.scene.physics.overlap(this.upperHitbox, blue)) {
+            isOverlappingBlue = true;
+          }
+        });
+      }
+      
+      // Check upper pipe blue hitboxes
+      if (upperPipeManager && upperPipeManager.blueHitboxes) {
+        upperPipeManager.blueHitboxes.getChildren().forEach((blue: any) => {
+          if (this.upperHitbox && this.scene.physics.overlap(this.upperHitbox, blue)) {
+            isOverlappingBlue = true;
+          }
+        });
+      }
+      
       if (isOverlappingBlue) {
         return; // Do not create attack hitbox if upperHitbox is overlapping blue
       }
@@ -305,8 +321,8 @@ export default class PlayerHitboxes {
     }
     // Look ahead hitbox is now permanent - no need to clean up
     // Use fixed values for attack hitbox size and position
-    const attackX = sprite.x + PlayerHitboxes.ATTACK_OFFSET_X;
-    const attackY = sprite.y + sprite.height / 2 + PlayerHitboxes.ATTACK_OFFSET_Y;
+    const attackX =  PlayerHitboxes.ATTACK_OFFSET_X;
+    const attackY = PlayerHitboxes.ATTACK_OFFSET_Y;
     // Create attack hitbox
     this.attackHitbox = this.scene.add.circle(attackX, attackY, PlayerHitboxes.ATTACK_RADIUS, 0x00ff00, 0.3);
     this.scene.physics.add.existing(this.attackHitbox);
@@ -472,17 +488,17 @@ export default class PlayerHitboxes {
     
     if (this.hitStopCheck && sprite) {
       const attackX = sprite.x + PlayerHitboxes.ATTACK_OFFSET_X;
-      const attackY = sprite.y + sprite.height / 2 + PlayerHitboxes.ATTACK_OFFSET_Y;
+      const attackY = sprite.y + 26 + PlayerHitboxes.ATTACK_OFFSET_Y;
       this.hitStopCheck.setPosition(attackX, attackY);
     }
     if (this.attackHitbox && sprite) {
       const attackX = sprite.x + PlayerHitboxes.ATTACK_OFFSET_X;
-      const attackY = sprite.y + sprite.height / 2 + PlayerHitboxes.ATTACK_OFFSET_Y;
+      const attackY = sprite.y + 26 + PlayerHitboxes.ATTACK_OFFSET_Y;
       this.attackHitbox.setPosition(attackX, attackY);
     }
     if (this.lookAheadHitbox && sprite) {
       const lookAheadX = sprite.x + sprite.width;
-      const lookAheadY = sprite.y + (sprite.height / 2) - (this.lookAheadHitbox.height / 2);
+      const lookAheadY = sprite.y + (26) - (this.lookAheadHitbox.height / 2);
       this.lookAheadHitbox.setPosition(lookAheadX, lookAheadY);
     }
   }

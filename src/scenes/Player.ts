@@ -114,9 +114,8 @@ export default class Player {
     
     // Handle swing frame holding state
     if (this.isHoldingSwingFrame) {
-      // Use manual detection to check if cubes are ahead
-      const cubesAhead = this.detectCubesAhead();
-      if (cubesAhead) {
+      // Check if cubes are detected ahead using the lookAheadHitbox
+      if (this.cubesDetectedAhead) {
         // Check if jumps are still available
         const currentJumpCount = (this.scene as any).jumpCount || 0;
         if (currentJumpCount < 3) {
@@ -737,8 +736,7 @@ export default class Player {
     // While holding swing pose, actively cut through purple cubes
     this.cutThroughPurpleCubes();
     
-    // Check if there are purple cubes ahead using manual detection
-    this.cubesDetectedAhead = this.detectCubesAhead();
+    // cubesDetectedAhead is now set by the lookAheadHitbox overlap detection in PlayScene
     
     // Only exit if both conditions are met:
     // 1. It's been more than the timeout since last hit (longer if cubes ahead)
@@ -838,34 +836,7 @@ export default class Player {
     });
   }
 
-  // Manually detect if there are purple cubes ahead of Kilboy
-  private detectCubesAhead(): boolean {
-    const upperPipeManager = (this.scene as any).upperPipeManager;
-    if (!upperPipeManager || !upperPipeManager.purpleHitboxes) return false;
 
-    // Define look-ahead area (80% smaller: same dimensions as createLookAheadHitbox)
-    const lookAheadWidth = 24;
-    const lookAheadHeight = (this.sprite.height) ;
-    const lookAheadX = this.sprite.x + this.sprite.width;
-    const lookAheadY = this.sprite.y + (this.sprite.height / 2) - (lookAheadHeight / 2);
-    
-    const lookAheadBounds = new Phaser.Geom.Rectangle(lookAheadX, lookAheadY, lookAheadWidth, lookAheadHeight);
-    
-    // Check if any purple cubes are in the look-ahead area
-    let cubesFound = false;
-    upperPipeManager.purpleHitboxes.getChildren().forEach((purpleHitbox: any) => {
-      if (!purpleHitbox.active || (purpleHitbox as any).canDamage === false) return;
-      
-      const purpleBounds = purpleHitbox.getBounds();
-      
-      if (Phaser.Geom.Rectangle.Overlaps(lookAheadBounds, purpleBounds)) {
-        cubesFound = true;
-  
-      }
-    });
-    
-    return cubesFound;
-  }
 
   // Actively cut through purple cubes while holding swing pose
   private cutThroughPurpleCubes(): void {

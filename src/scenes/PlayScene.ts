@@ -139,7 +139,7 @@ class PlayScene extends BaseScene {
     
     // Initialize debug toggle
     if (this.physics.world) {
-      this.physics.world.drawDebug = false;
+      this.physics.world.drawDebug = true;
     }
     if (this.input.keyboard) {
       this.toggleDebug = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP);
@@ -159,6 +159,35 @@ class PlayScene extends BaseScene {
     this.chunkManager.recycleChunks(this.player.sprite.x, 1000);
     this.checkGreenHitboxOverlap();
     this.checkBlueHitboxOverlap();
+    
+    // Reset cubesDetectedAhead if no purple cubes are detected ahead
+    if (this.player && this.player.hitboxes.lookAheadHitbox) {
+      let hasCubesAhead = false;
+      
+      // Check upper pipe purple cubes
+      if (this.upperPipeManager.purpleHitboxes && this.player.hitboxes.lookAheadHitbox) {
+        this.upperPipeManager.purpleHitboxes.getChildren().forEach((cube: any) => {
+          if (this.physics.overlap(this.player.hitboxes.lookAheadHitbox!, cube)) {
+            hasCubesAhead = true;
+          }
+        });
+      }
+      
+      // Check floating pipe purple cubes
+      if (this.floatingPipeManager.floatingPurpleHitboxes && this.player.hitboxes.lookAheadHitbox) {
+        this.floatingPipeManager.floatingPurpleHitboxes.getChildren().forEach((cube: any) => {
+          if (this.physics.overlap(this.player.hitboxes.lookAheadHitbox!, cube)) {
+            hasCubesAhead = true;
+          }
+        });
+      }
+      
+      // Reset cubesDetectedAhead if no cubes are detected
+      if (!hasCubesAhead) {
+        this.player.cubesDetectedAhead = false;
+      }
+    }
+    
     this.uiManager.updateHealthUI(this.player.getHealth());
     this.player.updateAttackHitboxPosition();
     
