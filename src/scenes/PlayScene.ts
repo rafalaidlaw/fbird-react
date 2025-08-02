@@ -400,12 +400,12 @@ class PlayScene extends BaseScene {
       }
     });
     
-    // Check brown hitboxes for X velocity and apply gravity/fading
+    // Check purple hitboxes for X velocity and apply gravity/fading
     this.floatingPipeManager.floatingPurpleHitboxes.getChildren().forEach((purpleHitbox: any) => {
       if (purpleHitbox.body && purpleHitbox.body instanceof Phaser.Physics.Arcade.Body) {
         const body = purpleHitbox.body as Phaser.Physics.Arcade.Body;
         
-        // If brown hitbox has significant velocity, apply gravity and fading
+        // If purple hitbox has significant velocity, apply gravity and fading
         if (Math.abs(body.velocity.x) > 5) { // Higher threshold to avoid moving stationary hitboxes
           // Enable gravity if not already enabled
           if (!body.allowGravity) {
@@ -438,12 +438,12 @@ class PlayScene extends BaseScene {
       }
     });
     
-    // Check falling brown hitboxes for X velocity and apply gravity/fading
+    // Check falling purple hitboxes for X velocity and apply gravity/fading
     this.floatingPipeManager.fallingPurpleHitboxes.getChildren().forEach((purpleHitbox: any) => {
       if (purpleHitbox.body && purpleHitbox.body instanceof Phaser.Physics.Arcade.Body) {
         const body = purpleHitbox.body as Phaser.Physics.Arcade.Body;
         
-        // If brown hitbox has significant velocity, apply gravity and fading
+        // If purple hitbox has significant velocity, apply gravity and fading
         if (Math.abs(body.velocity.x) > 5) { // Higher threshold to avoid moving stationary hitboxes
           // Enable gravity if not already enabled
           if (!body.allowGravity) {
@@ -1190,20 +1190,16 @@ class PlayScene extends BaseScene {
           const isFalling = hitboxBody && hitboxBody.gravity.y > 0;
           
           // Find the pipe container that owns this green hitbox
-          let pipeHasBrownCubes = false;
           let pipeContainer: any = null;
           this.floatingPipeManager.pipes.getChildren().forEach((container: any) => {
             if ((container as any).greenHitbox === hitbox) {
               pipeContainer = container;
-              // Check if brown cubes have been spawned for this pipe
-              if ((container as any).brownHitboxes && (container as any).brownHitboxes.length > 0) {
-                pipeHasBrownCubes = true;
-              }
+
             }
           });
           
-          // Only allow standing on green hitbox if it's not falling AND no brown cubes are spawned
-          if (!isFalling && !pipeHasBrownCubes) {
+          // Only allow standing on green hitbox if it's not falling
+          if (!isFalling) {
             isOverlapping = true;
             if (!firstOverlappingGreen) firstOverlappingGreen = hitbox;
           }

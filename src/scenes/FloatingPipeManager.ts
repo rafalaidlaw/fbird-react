@@ -103,7 +103,7 @@ export default class FloatingPipeManager {
       return; // Already generated, skip
     }
 
-    const numColumns = 5; // Match brown cube columns
+    const numColumns = 5; // Match cube columns
     const hitboxWidth = 16;
     const pipeWidth = 80;
     const pipeHeight = 192;

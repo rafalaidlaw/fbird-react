@@ -52,7 +52,7 @@ export default class LedgeGrabManager {
       this.player.hitboxes.lookAheadHitbox,
       this.floatingPipeManager.ledgeGrabHitboxes,
       (lookAhead: any, ledgeGrabHitbox: any) => {
-        // Don't trigger ledge grab if Kilboy is already cutting through brown hitboxes
+        // Don't trigger ledge grab if Kilboy is already cutting through hitboxes
         if (this.player.isHoldingSwingFrame) {
           return;
         }
