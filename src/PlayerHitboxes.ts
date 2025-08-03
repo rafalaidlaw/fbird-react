@@ -14,7 +14,7 @@ export default class PlayerHitboxes {
   // Attack hitbox configuration - easily adjustable
   private static readonly ATTACK_RADIUS = 44; // Radius of the attack hitbox (10% bigger)
   private static readonly ATTACK_OFFSET_X = 45; // How far to the right of Kilboy
-  private static readonly ATTACK_OFFSET_Y = -20; // Vertical offset from Kilboy's center
+  private static readonly ATTACK_OFFSET_Y = 10; // Vertical offset from Kilboy's center
   
   // Hitstop hitbox configuration
   private static readonly HITSTOP_RADIUS = 26; // Radius of the hitstop check hitbox (smaller than attack)
@@ -498,7 +498,7 @@ export default class PlayerHitboxes {
     }
     if (this.lookAheadHitbox && sprite) {
       const lookAheadX = sprite.x + sprite.width;
-      const lookAheadY = sprite.y + (26) - (this.lookAheadHitbox.height / 2);
+      const lookAheadY = sprite.y + (56);
       this.lookAheadHitbox.setPosition(lookAheadX, lookAheadY);
     }
   }
