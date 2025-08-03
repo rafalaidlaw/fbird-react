@@ -1230,9 +1230,9 @@ class PlayScene extends BaseScene {
           });
         }
         if (isFloatingPipe) {
-          this.player.sprite.y = floatingContainerY + firstOverlappingGreen.y - 64;
+          this.player.sprite.y = floatingContainerY + firstOverlappingGreen.y - 115;
         } else {
-          this.player.sprite.y = firstOverlappingGreen.y - 64;
+          this.player.sprite.y = firstOverlappingGreen.y - 115;
         }
       }
     } else {
