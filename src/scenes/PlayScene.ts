@@ -67,6 +67,8 @@ class PlayScene extends BaseScene {
   private debugCameraText!: Phaser.GameObjects.Text;
   private groundPlaneSegments: Phaser.GameObjects.Rectangle[] = [];
   private skyPlaneSegments: Phaser.GameObjects.Rectangle[] = [];
+  private parallaxSegments: Phaser.GameObjects.Rectangle[] = [];
+  private backgroundParallaxSegments: Phaser.GameObjects.Rectangle[] = [];
   private chunkManager!: ChunkManager;
   private ledgeGrabManager!: LedgeGrabManager;
   private toggleDebug!: Phaser.Input.Keyboard.Key;
@@ -481,6 +483,12 @@ class PlayScene extends BaseScene {
     // Update sky plane segments - recycle off-screen segments
     this.updateSkySegments();
     
+    // Update parallax segments - recycle off-screen segments
+    this.updateParallaxSegments();
+    
+    // Update background parallax segments - recycle off-screen segments
+    this.updateBackgroundParallaxSegments();
+    
     // Enemy system temporarily disabled for static pipe testing
     // Check floating pipe purple hitboxes for velocity and apply gravity/fading
     this.floatingPipeManager.floatingPurpleHitboxes.getChildren().forEach((purpleHitbox: any) => {
@@ -605,6 +613,68 @@ class PlayScene extends BaseScene {
     }
   }
 
+  private updateParallaxSegments(): void {
+    if (!this.player || !this.player.sprite) return;
+    
+    const playerX = this.player.sprite.x;
+    const screenLeft = playerX - this.config.width / 2;
+    const screenRight = playerX + this.config.width / 2;
+    const segmentWidth = 200;
+    const parallaxHeight = 100;
+    const parallaxY = 1016;
+    
+    // Remove segments that are too far to the left (off-screen)
+    this.parallaxSegments = this.parallaxSegments.filter(segment => {
+      const segmentRight = segment.x + segmentWidth;
+      if (segmentRight < screenLeft - 100) { // 100px buffer
+        segment.destroy();
+        return false; // Remove from array
+      }
+      return true; // Keep in array
+    });
+    
+    // Add new segments to the right if needed
+    const rightmostSegment = this.parallaxSegments.length > 0 
+      ? Math.max(...this.parallaxSegments.map(s => s.x))
+      : screenRight;
+    
+    if (rightmostSegment < screenRight + 200) { // 200px buffer
+      const newSegmentX = rightmostSegment + segmentWidth;
+      this.createParallaxSegment(newSegmentX, parallaxY, segmentWidth, parallaxHeight);
+    }
+  }
+
+  private updateBackgroundParallaxSegments(): void {
+    if (!this.player || !this.player.sprite) return;
+    
+    const playerX = this.player.sprite.x;
+    const screenLeft = playerX - this.config.width / 2;
+    const screenRight = playerX + this.config.width / 2;
+    const segmentWidth = 200;
+    const parallaxHeight = 100;
+    const parallaxY = 984;
+    
+    // Remove segments that are too far to the left (off-screen)
+    this.backgroundParallaxSegments = this.backgroundParallaxSegments.filter(segment => {
+      const segmentRight = segment.x + segmentWidth;
+      if (segmentRight < screenLeft - 100) { // 100px buffer
+        segment.destroy();
+        return false; // Remove from array
+      }
+      return true; // Keep in array
+    });
+    
+    // Add new segments to the right if needed
+    const rightmostSegment = this.backgroundParallaxSegments.length > 0 
+      ? Math.max(...this.backgroundParallaxSegments.map(s => s.x))
+      : screenRight;
+    
+    if (rightmostSegment < screenRight + 200) { // 200px buffer
+      const newSegmentX = rightmostSegment + segmentWidth;
+      this.createBackgroundParallaxSegment(newSegmentX, parallaxY, segmentWidth, parallaxHeight);
+    }
+  }
+
   private listenToEvents(): void {
     if (this.pauseEvent) {
       return;
@@ -653,6 +723,10 @@ class PlayScene extends BaseScene {
     this.groundPlaneSegments = [];
     this.skyPlaneSegments.forEach(segment => segment.destroy());
     this.skyPlaneSegments = [];
+    this.parallaxSegments.forEach(segment => segment.destroy());
+    this.parallaxSegments = [];
+    this.backgroundParallaxSegments.forEach(segment => segment.destroy());
+    this.backgroundParallaxSegments = [];
     this.physics.world.setBounds(0, 0, this.config.width, this.config.height);
     // --- End fix ---
 
@@ -660,6 +734,10 @@ class PlayScene extends BaseScene {
     this.createInitialGroundSegments();
     // Create segmented sky plane system
     this.createInitialSkySegments();
+    // Create parallax effect at bottom of screen
+    this.createInitialParallaxSegments();
+    // Create background parallax effect behind ground plane
+    this.createInitialBackgroundParallaxSegments();
     // Update world bounds to include both planes
     // The ground plane is at Y=1000, sky plane at Y=-1000
     const groundHeight = 200;
@@ -699,6 +777,36 @@ class PlayScene extends BaseScene {
     }
   }
 
+  private createInitialParallaxSegments(): void {
+    // Create initial parallax segments at the bottom of the screen
+    const segmentWidth = 200; // Smaller segments for better memory management
+    const parallaxHeight = 100; // Height of the parallax effect
+    const parallaxY = 1016; // Position at bottom of screen
+    
+    // Create segments starting from left edge of world
+    const startX = -200; // Start before screen
+    const endX = this.config.width + 400; // Extend beyond screen
+    
+    for (let x = startX; x < endX; x += segmentWidth) {
+      this.createParallaxSegment(x, parallaxY, segmentWidth, parallaxHeight);
+    }
+  }
+
+  private createInitialBackgroundParallaxSegments(): void {
+    // Create initial background parallax segments behind the ground plane
+    const segmentWidth = 200; // Smaller segments for better memory management
+    const parallaxHeight = 100; // Height of the parallax effect
+    const parallaxY = 984; // Position behind ground plane (ground is at Y=1000)
+    
+    // Create segments starting from left edge of world
+    const startX = -200; // Start before screen
+    const endX = this.config.width + 400; // Extend beyond screen
+    
+    for (let x = startX; x < endX; x += segmentWidth) {
+      this.createBackgroundParallaxSegment(x, parallaxY, segmentWidth, parallaxHeight);
+    }
+  }
+
   private createGroundSegment(x: number, y: number, width: number, height: number): Phaser.GameObjects.Rectangle {
     const groundSegment = this.add.rectangle(x, y, width, height, 0xFF8C00, 1); // Orange color
     groundSegment.setOrigin(0, 0);
@@ -734,6 +842,9 @@ class PlayScene extends BaseScene {
     const skySegment = this.add.rectangle(x, y, width, height, 0x87CEEB, 1); // Sky blue color
     skySegment.setOrigin(0, 0);
     
+    // Set z-index to layer behind the turquoise parallax
+    skySegment.setDepth(-20); // Lower z-index to appear behind background parallax
+    
     // Add physics to the sky segment
     this.physics.add.existing(skySegment);
     (skySegment.body as Phaser.Physics.Arcade.Body).setImmovable(true);
@@ -759,6 +870,44 @@ class PlayScene extends BaseScene {
     
     this.skyPlaneSegments.push(skySegment);
     return skySegment;
+  }
+
+  private createParallaxSegment(x: number, y: number, width: number, height: number): Phaser.GameObjects.Rectangle {
+    const parallaxSegment = this.add.rectangle(x, y, width, height, 0xFF6600, 0.8); // Darker orange color with transparency
+    parallaxSegment.setOrigin(0, 0);
+    
+    // Set z-index to layer in front of ground plane
+    parallaxSegment.setDepth(10); // Higher z-index to appear in front
+    
+    // Add physics to enable velocity
+    this.physics.add.existing(parallaxSegment);
+    (parallaxSegment.body as Phaser.Physics.Arcade.Body).setImmovable(true);
+    (parallaxSegment.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
+    
+    // Set constant negative velocity for parallax effect
+    (parallaxSegment.body as Phaser.Physics.Arcade.Body).setVelocityX(-20); // Negative velocity to move left (slower)
+    
+    this.parallaxSegments.push(parallaxSegment);
+    return parallaxSegment;
+  }
+
+  private createBackgroundParallaxSegment(x: number, y: number, width: number, height: number): Phaser.GameObjects.Rectangle {
+    const backgroundParallaxSegment = this.add.rectangle(x, y, width, height, 0x40E0D0, 0.6); // Turquoise color with transparency
+    backgroundParallaxSegment.setOrigin(0, 0);
+    
+    // Set z-index to layer behind ground plane
+    backgroundParallaxSegment.setDepth(-1); // Lower z-index to appear behind
+    
+    // Add physics to enable velocity
+    this.physics.add.existing(backgroundParallaxSegment);
+    (backgroundParallaxSegment.body as Phaser.Physics.Arcade.Body).setImmovable(true);
+    (backgroundParallaxSegment.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
+    
+    // Set constant positive velocity for background parallax effect
+    (backgroundParallaxSegment.body as Phaser.Physics.Arcade.Body).setVelocityX(10); // Positive velocity to move right
+    
+    this.backgroundParallaxSegments.push(backgroundParallaxSegment);
+    return backgroundParallaxSegment;
   }
 
   private createAdditionalGroundSegment(x: number): void {
