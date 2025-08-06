@@ -28,7 +28,7 @@ class BaseScene extends Phaser.Scene {
     this.add.image(0, 0, "sky-bg").setOrigin(0);
     if (this.config.canGoBack) {
       const backButton = this.add
-        .image(this.config.width - 10, this.config.height - 10, "back")
+        .image(this.config.width - 10 + 400, this.config.height - 10, "back")
         .setOrigin(1)
         .setScale(2)
         .setInteractive()
