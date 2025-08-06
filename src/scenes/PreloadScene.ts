@@ -35,6 +35,9 @@ class PreloadScene extends Phaser.Scene {
     this.load.image("dead-face", "assets/dead-face.png");
     this.load.image("enemy_met", "assets/met_enemy.png"); // Preload enemy texture
     this.load.image('bush', 'assets/bush-16x16.png');
+    this.load.image('ground01', 'assets/ground01.png'); // Preload ground texture for parallax
+    this.load.image('ground00', 'assets/ground00.png'); // Preload ground texture for ground segments
+    this.load.image('ground02', 'assets/ground02.png'); // Preload ground texture for second parallax
     
     // Preload the custom font using a custom loader
     this.load.on('complete', () => {
